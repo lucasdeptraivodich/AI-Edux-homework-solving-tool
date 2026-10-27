@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduX - Bài tập trắc nghiệm trực tuyến (Mẫu thử nghiệm)</title>
+  <style>
+    :root {
+      --primary-color: #0284c7;
+      --bg-color: #f1f5f9;
+      --card-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 24px;
+      line-height: 1.6;
+    }
+
+    .quiz-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* EduX Header Simulation */
+    .quiz-header {
+      background: var(--card-bg);
+      padding: 20px 24px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .quiz-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0369a1;
+    }
+
+    .quiz-info {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .timer-badge {
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* Question Item */
+    .question-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: all 0.2s ease;
+    }
+
+    .question-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #0f172a;
+    }
+
+    .question-badge {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #475569;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 6px;
+    }
+
+    /* Option Items */
+    .options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #fafafa;
+    }
+
+    .option-item:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .option-item input[type="radio"] {
+      margin-right: 12px;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: #0284c7;
+    }
+
+    .option-label {
+      font-weight: 700;
+      color: #334155;
+      margin-right: 8px;
+      min-width: 20px;
+    }
+
+    .option-content {
+      font-size: 14px;
+      color: #334155;
+      flex: 1;
+    }
+
+    .submit-container {
+      text-align: center;
+      margin-top: 30px;
+      margin-bottom: 50px;
+    }
+
+    .btn-submit {
+      background: #0284c7;
+      color: #ffffff;
+      padding: 12px 32px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="quiz-container">
+    <header class="quiz-header">
+      <div>
+        <h1 class="quiz-title">EduX - Kiểm Tra Kiến Thức Tổng Hợp</h1>
+        <p class="quiz-info">Hệ thống bài thi trắc nghiệm trực tuyến (Mẫu demo để kiểm tra Extension)</p>
+      </div>
+      <div class="timer-badge">⏱️ 45:00</div>
+    </header>
+
+    <!-- Câu hỏi 1 -->
+    <div class="question-item" id="q1">
+      <div class="question-title">
+        <span class="question-badge">Câu 1</span>
+        Thủ đô của nước Cộng hòa Xã hội Chủ nghĩa Việt Nam là thành phố nào?
+      </div>
+      <div class="options-list">
+        <label class="option-item">
+          <input type="radio" name="q1" value="A">
+          <span class="option-label">A.</span>
+          <span class="option-content">Thành phố Hồ Chí Minh</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q1" value="B">
+          <span class="option-label">B.</span>
+          <span class="option-content">Hà Nội</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q1" value="C">
+          <span class="option-label">C.</span>
+          <span class="option-content">Đà Nẵng</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q1" value="D">
+          <span class="option-label">D.</span>
+          <span class="option-content">Hải Phòng</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Câu hỏi 2 -->
+    <div class="question-item" id="q2">
+      <div class="question-title">
+        <span class="question-badge">Câu 2</span>
+        Công thức hóa học của nước nguyên chất là gì?
+      </div>
+      <div class="options-list">
+        <label class="option-item">
+          <input type="radio" name="q2" value="A">
+          <span class="option-label">A.</span>
+          <span class="option-content">CO2</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q2" value="B">
+          <span class="option-label">B.</span>
+          <span class="option-content">NaCl</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q2" value="C">
+          <span class="option-label">C.</span>
+          <span class="option-content">H2O</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q2" value="D">
+          <span class="option-label">D.</span>
+          <span class="option-content">H2SO4</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Câu hỏi 3 -->
+    <div class="question-item" id="q3">
+      <div class="question-title">
+        <span class="question-badge">Câu 3</span>
+        Hành tinh nào gần Mặt Trời nhất trong Hệ Mặt Trời?
+      </div>
+      <div class="options-list">
+        <label class="option-item">
+          <input type="radio" name="q3" value="A">
+          <span class="option-label">A.</span>
+          <span class="option-content">Sao Kim (Venus)</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q3" value="B">
+          <span class="option-label">B.</span>
+          <span class="option-content">Sao Hỏa (Mars)</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q3" value="C">
+          <span class="option-label">C.</span>
+          <span class="option-content">Sao Thủy (Mercury)</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q3" value="D">
+          <span class="option-label">D.</span>
+          <span class="option-content">Trái Đất (Earth)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Câu hỏi 4 -->
+    <div class="question-item" id="q4">
+      <div class="question-title">
+        <span class="question-badge">Câu 4</span>
+        Trong lập trình JavaScript, hàm nào được dùng để in thông điệp ra màn hình Console của trình duyệt?
+      </div>
+      <div class="options-list">
+        <label class="option-item">
+          <input type="radio" name="q4" value="A">
+          <span class="option-label">A.</span>
+          <span class="option-content">console.log()</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q4" value="B">
+          <span class="option-label">B.</span>
+          <span class="option-content">print()</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q4" value="C">
+          <span class="option-label">C.</span>
+          <span class="option-content">echo()</span>
+        </label>
+        <label class="option-item">
+          <input type="radio" name="q4" value="D">
+          <span class="option-label">D.</span>
+          <span class="option-content">System.out.println()</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="submit-container">
+      <button class="btn-submit" type="button" onclick="alert('Đã nộp bài thành công!')">Nộp bài thi</button>
+    </div>
+  </div>
+</body>
+</html>

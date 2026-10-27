@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduX Quiz Solver</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-group">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1 class="title">EduX AI Solver</h1>
+          <p class="subtitle">Tự động giải trắc nghiệm & điền ô trống với Gemini</p>
+        </div>
+      </div>
+      <div id="statusBadge" class="status-badge badge-warning">
+        <span class="status-dot"></span>
+        <span id="statusText">Chưa có API Key</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- API Key Section -->
+      <section class="card">
+        <label for="apiKeyInput" class="section-label">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          Google Gemini API Key
+        </label>
+        <div class="input-group">
+          <input 
+            type="password" 
+            id="apiKeyInput" 
+            placeholder="Dán AIzaSy... vào đây" 
+            autocomplete="off" 
+            spellcheck="false"
+          />
+          <button type="button" id="toggleKeyVisibility" class="btn-icon" title="Ẩn/Hiện API Key">
+            👁️
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="saveKeyBtn" class="btn btn-secondary">
+            <span>💾 Lưu Key</span>
+          </button>
+          <button id="testKeyBtn" class="btn btn-secondary" title="Kiểm tra xem API Key có hoạt động không">
+            <span>🔍 Test Key</span>
+          </button>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link-get-key">
+            Lấy key ↗
+          </a>
+        </div>
+      </section>
+
+      <!-- Settings Info -->
+      <section class="card info-grid">
+        <div class="info-item">
+          <span class="info-label">AI Model</span>
+          <span class="info-value">Tự động (Flash/Pro)</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Độ trễ giả lập</span>
+          <span class="info-value">1.5s - 3.5s / câu</span>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section class="actions">
+        <button id="startBtn" class="btn btn-primary">
+          <span class="btn-icon-symbol">▶</span>
+          <span>Bắt đầu tự động làm</span>
+        </button>
+        <button id="stopBtn" class="btn btn-danger" style="display: none;">
+          <span class="btn-icon-symbol">⏹</span>
+          <span>Dừng lại</span>
+        </button>
+      </section>
+
+      <!-- Console / Status Feed -->
+      <div id="logBox" class="log-box">
+        <div class="log-title">Trạng thái:</div>
+        <div id="logMessage" class="log-message">Sẵn sàng hoạt động.</div>
+      </div>
+    </main>
+
+    <!-- Footer Guide -->
+    <footer class="footer">
+      <details class="guide-details">
+        <summary>💡 Hướng dẫn & Tùy chỉnh Selector</summary>
+        <div class="guide-content">
+          <p>1. Lấy API Key từ <b>Google AI Studio</b> rồi dán và bấm <b>Lưu API Key</b>.</p>
+          <p>2. Mở tab bài tập trắc nghiệm trên <b>EduX</b>.</p>
+          <p>3. Bấm <b>Bắt đầu tự động làm</b>.</p>
+          <p>4. Nếu trang web dùng class khác, mở file <code>content.js</code> và điều chỉnh biến <code>SELECTORS</code> ở đầu file.</p>
+        </div>
+      </details>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
