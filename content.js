@@ -305,6 +305,70 @@ async function advanceToNextQuestion(targetNum) {
 }
 
 /**
+ * Tìm tất cả các hàng mệnh đề ĐÚNG / SAI (True/False sub-items)
+ * Phù hợp với định dạng EduX: Mỗi mệnh đề có 2 nút [Đúng] và [Sai] bên cạnh
+ */
+function findTrueFalseRows(container) {
+  if (!container) return [];
+
+  // Tìm các container con có chứa cả 2 từ "Đúng" và "Sai"
+  const allCandidates = Array.from(
+    container.querySelectorAll('div, li, [class*="item"], [class*="row"], tr')
+  ).filter((el) => {
+    if (el === container || el.contains(container)) return false;
+    if (el.closest('#edux-solver-hud')) return false;
+
+    const txt = (el.innerText || '').trim();
+    if (!/\bĐúng\b/.test(txt) || !/\bSai\b/.test(txt)) return false;
+    if (txt.length > 800) return false;
+
+    // Tìm xem bên trong có đúng 2 nút/element có nhãn "Đúng" và "Sai" không
+    const clickables = Array.from(el.querySelectorAll('button, [role="button"], div, label, span, a'));
+    const dungEl = clickables.find((c) => c.innerText?.trim() === 'Đúng' && c.children.length <= 1);
+    const saiEl = clickables.find((c) => c.innerText?.trim() === 'Sai' && c.children.length <= 1);
+
+    return !!(dungEl && saiEl);
+  });
+
+  // Lọc chỉ lấy các node lá sâu nhất (innermost nodes - không chứa candidate khác)
+  const innermost = allCandidates.filter((cand) => {
+    return !allCandidates.some((other) => other !== cand && cand.contains(other));
+  });
+
+  // Sắp xếp các hàng từ trên xuống dưới theo vị trí trên màn hình
+  innermost.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+
+  const results = [];
+  innermost.forEach((row, idx) => {
+    const clickables = Array.from(row.querySelectorAll('button, [role="button"], div, label, span, a'));
+    const dungBtn =
+      clickables.find((c) => c.innerText?.trim() === 'Đúng' && c.children.length <= 1) ||
+      clickables.find((c) => c.innerText?.trim() === 'Đúng');
+    const saiBtn =
+      clickables.find((c) => c.innerText?.trim() === 'Sai' && c.children.length <= 1) ||
+      clickables.find((c) => c.innerText?.trim() === 'Sai');
+
+    if (dungBtn && saiBtn) {
+      let statementText = (row.innerText || '').trim();
+      // Làm sạch các từ thừa Đúng và Sai ở cuối hàng để lấy nguyên văn mệnh đề
+      statementText = statementText
+        .replace(/\bĐúng\b/g, '')
+        .replace(/\bSai\b/g, '')
+        .trim();
+
+      results.push({
+        index: idx + 1,
+        rowElement: row,
+        statementText: statementText || `Mệnh đề ${idx + 1}`,
+        dungBtn,
+        saiBtn
+      });
+    }
+  });
+
+  return results;
+}
+
 /**
  * Bóc tách câu hỏi và các lựa chọn ĐANG HIỂN THỊ trên màn hình hiện tại (EduX Single Question)
  */
@@ -329,7 +393,7 @@ function extractCurrentSingleQuestion() {
       questionNumber = parseInt(numMatch[1], 10);
     }
 
-    // Trên EduX, cấu trúc đề thi gồm hàng tiêu đề (Câu X [Trắc nghiệm] :) và nội dung câu hỏi nằm trong .flex.items-start
+    // Trên EduX, cấu trúc đề thi gồm hàng tiêu đề (Câu X [Trắc nghiệm] / [Đúng sai] :) và nội dung câu hỏi nằm trong .flex.items-start
     const questionRow =
       titleNode.closest('div[class*="items-start"]') ||
       titleNode.closest('div[class*="mb-2"]') ||
@@ -345,9 +409,11 @@ function extractCurrentSingleQuestion() {
       questionText = `${titleNode.parentElement?.innerText || titleNode.innerText} ${siblingText}`.trim();
     }
 
-    // Dọn dẹp các nhãn giao diện thừa như "Trắc nghiệm", "Điền chỗ trống" để nội dung đề bài chuẩn xác nhất
+    // Dọn dẹp các nhãn giao diện thừa như "Trắc nghiệm", "Đúng sai", "Điền chỗ trống" để nội dung đề bài chuẩn xác nhất
     questionText = questionText
       .replace(/Trắc nghiệm\s*[:\-]?\s*/gi, '')
+      .replace(/Đúng\s*sai\s*[:\-]?\s*/gi, '')
+      .replace(/Đúng\s*\/\s*Sai\s*[:\-]?\s*/gi, '')
       .replace(/Điền chỗ trống\s*[:\-]?\s*/gi, '')
       .replace(/Điền từ hoặc cụm từ phù hợp vào chỗ trống\s*[:\-]?\s*/gi, '')
       .trim();
@@ -359,7 +425,7 @@ function extractCurrentSingleQuestion() {
     }
   }
 
-  // 2. Tìm các lựa chọn A, B, C, D
+  // 2. Tìm các lựa chọn A, B, C, D (cho câu trắc nghiệm nhiều lựa chọn)
   const options = [];
   const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -421,22 +487,32 @@ function extractCurrentSingleQuestion() {
     });
   }
 
-  // 3. Kiểm tra xem có ô nhập liệu dạng điền từ (fill_blank) không
+  // 3. Kiểm tra xem có các hàng dạng ĐÚNG / SAI (True/False sub-items) không
+  const tfRows = findTrueFalseRows(root);
+
+  // 4. Kiểm tra xem có ô nhập liệu dạng điền từ (fill_blank) không
   const fillInput = Array.from(
     root.querySelectorAll(
       'input[placeholder*="Nhập câu trả lời"], input[placeholder*="câu trả lời"], input[placeholder*="trả lời"], textarea, input[type="text"]'
     )
   ).find((el) => !el.closest('#edux-solver-hud') && (el.offsetParent !== null || el.offsetWidth > 0));
 
-  const isFillBlank = options.length < 2 && !!fillInput;
-  const questionType = isFillBlank ? 'fill_blank' : 'multiple_choice';
+  let questionType = 'multiple_choice';
+  if (tfRows.length >= 1) {
+    questionType = 'true_false';
+  } else if (options.length >= 2) {
+    questionType = 'multiple_choice';
+  } else if (fillInput) {
+    questionType = 'fill_blank';
+  }
 
   return {
     questionNumber,
     questionText,
     questionType,
     options,
-    inputElement: isFillBlank ? fillInput : null
+    trueFalseRows: tfRows,
+    inputElement: questionType === 'fill_blank' ? fillInput : null
   };
 }
 
@@ -590,8 +666,8 @@ function clearHighlights() {
     el.removeAttribute('data-edux-highlighted');
   });
 
-  // Quét sạch mọi div option hoặc input có border inline style màu xanh lá sót lại từ các câu trước do React tái sử dụng DOM
-  const allStyled = root.querySelectorAll('div[style*="border"], input[style*="border"], label[style*="border"]');
+  // Quét sạch mọi div option, input, button có border inline style màu xanh lá sót lại từ các câu trước do React tái sử dụng DOM
+  const allStyled = root.querySelectorAll('div[style*="border"], input[style*="border"], label[style*="border"], button[style*="border"], span[style*="border"]');
   allStyled.forEach((el) => {
     const borderStyle = el.style.border || '';
     if (borderStyle.includes('16, 185, 129') || borderStyle.includes('#10b981') || borderStyle.includes('#28a745')) {
@@ -685,18 +761,115 @@ function fillAnswerToInput(inputEl, answerText) {
 }
 
 /**
- * Gọi Gemini giải câu hỏi dạng ĐIỀN CHỖ TRỐNG (Fill in the blank)
+ * Click chọn và làm nổi bật nút Đúng hoặc Sai (Tương thích React Synthetic Events)
+ */
+function clickTrueFalseButton(btn) {
+  if (!btn) return;
+
+  btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Nhắm đúng thẻ tương tác (button, label hoặc container)
+  const target = btn.closest('button, label, [role="button"]') || btn;
+  clickElementSafely(target);
+
+  // Kích hoạt input radio bên trong nếu có
+  const radio = target.querySelector('input[type="radio"]') || target.parentElement?.querySelector('input[type="radio"]');
+  if (radio) {
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+    radio.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Viền xanh lá và đổ bóng thông báo đã chọn
+  target.setAttribute('data-edux-highlighted', 'true');
+  target.style.border = '2px solid #10b981';
+  target.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+  target.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.4)';
+  target.style.borderRadius = '6px';
+  target.style.transition = 'all 0.2s ease';
+}
+
+/**
+ * Gọi Gemini giải câu hỏi dạng ĐÚNG / SAI (Đa mệnh đề hoặc đơn mệnh đề)
+ */
+async function callGeminiTrueFalse(apiKey, questionText, statements) {
+  const formattedStatements = statements
+    .map((s, idx) => `${idx + 1}. ${s.statementText}`)
+    .join('\n');
+
+  const prompt = `Bạn là một chuyên gia học thuật xuất sắc. Hãy đọc kỹ câu hỏi và đánh giá tính ĐÚNG hoặc SAI của từng mệnh đề dưới đây:
+
+[ĐỀ BÀI]:
+${questionText}
+
+[DANH SÁCH MỆNH ĐỀ]:
+${formattedStatements}
+
+YÊU CẦU:
+1. Phân tích thật kỹ từng mệnh đề dựa trên kiến thức học thuật chính xác và toàn diện.
+2. Với mỗi mệnh đề, xác định rõ là "Đúng" hoặc "Sai".
+3. Bắt buộc trả lời theo đúng định dạng sau, mỗi mệnh đề 1 dòng duy nhất (tuyệt đối không thêm giải thích rườm rà):
+1: Đúng (hoặc Sai)
+2: Đúng (hoặc Sai)
+3: Đúng (hoặc Sai)
+4: Đúng (hoặc Sai)`;
+
+  let responseText = '';
+  try {
+    responseText = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Quá thời gian chờ phản hồi từ Gemini API (Timeout 25s).'));
+      }, 25000);
+
+      chrome.runtime.sendMessage(
+        { action: 'CALL_GEMINI_PROXY', apiKey, prompt },
+        (res) => {
+          clearTimeout(timer);
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!res || !res.success) {
+            reject(new Error(res?.error || 'Lỗi không xác định khi gọi Gemini API.'));
+          } else {
+            resolve(res.data || '');
+          }
+        }
+      );
+    });
+  } catch (e) {
+    throw e;
+  }
+
+  const trimmed = (responseText || '').trim();
+  const results = {};
+
+  // Phân tích từng dòng trả về
+  const lines = trimmed.split('\n');
+  lines.forEach((line) => {
+    const match = line.match(/(?:mệnh đề\s*)?(\d+)\s*[:\.\-]?\s*(Đúng|Sai|True|False)/i);
+    if (match) {
+      const idx = parseInt(match[1], 10);
+      const val = match[2].toLowerCase();
+      results[idx] = val === 'đúng' || val === 'true' ? 'Đúng' : 'Sai';
+    }
+  });
+
+  return results;
+}
+
+/**
+ * Gọi Gemini giải câu hỏi dạng ĐIỀN CHỖ TRỐNG / TỰ LUẬN NGẮN (Fill in the blank)
  */
 async function callGeminiFillBlank(apiKey, questionText) {
-  const prompt = `Bạn là một chuyên gia môn Trí tuệ nhân tạo (AI) và Đạo đức nghề nghiệp CNTT.
-Đây là câu hỏi dạng [ĐIỀN TỪ VÀO CHỖ TRỐNG] (hoàn toàn không có các lựa chọn A, B, C, D).
+  const prompt = `Bạn là một chuyên gia học thuật xuất sắc trình độ đại học.
+Đây là câu hỏi dạng [TỰ LUẬN NGẮN / ĐIỀN TỪ VÀO CHỖ TRỐNG] (hoàn toàn không có các phương án lựa chọn A, B, C, D).
 
 [CÂU HỎI]:
 ${questionText}
 
-YÊU CẦU:
-1. Đọc kỹ câu hỏi, tìm từ hoặc cụm từ chính xác nhất theo kiến thức chuẩn để điền vào vị trí dấu gạch dưới (______).
-2. Bắt buộc trả lời ngay ở dòng đầu tiên theo đúng cú pháp sau:
+YÊU CẦU QUAN TRỌNG:
+1. Đọc kỹ câu hỏi, tự động xác định chuyên ngành môn học và suy luận logic chính xác để tìm từ, cụm từ, thuật ngữ chuyên ngành hoặc đáp số chuẩn xác nhất điền vào chỗ trống (______).
+2. Chuẩn hóa đáp án: Trả lời ngắn gọn, chuẩn xác thuật ngữ học thuật, tuyệt đối không thêm từ nối dư thừa, không viết dấu chấm câu ở cuối từ.
+3. Bắt buộc trả lời ngay ở dòng đầu tiên theo đúng cú pháp sau:
 Điền từ: [từ hoặc cụm từ cần điền]`;
 
   let responseText = '';
@@ -731,7 +904,8 @@ YÊU CẦU:
     trimmed.match(/^["'“]?([^"'\n\r”]+)["'”]?/);
 
   let result = match ? match[1].trim() : trimmed;
-  result = result.replace(/[\.\:\;]+$/, '').trim();
+  // Bỏ dấu ngoặc kép, dấu chấm, dấu phẩy thừa ở cuối
+  result = result.replace(/^["'“”]+|["'“”]+$/g, '').replace(/[\.\:\;]+$/, '').trim();
   return result;
 }
 
@@ -794,10 +968,11 @@ async function runSingleQuestionPaginationMode(apiKey) {
     // 1. Bóc tách câu hỏi đang hiển thị trên màn hình
     const qData = extractCurrentSingleQuestion();
 
-    // Kiểm tra câu hỏi hợp lệ: trắc nghiệm (>= 2 options) HOẶC điền ô trống (có inputElement)
+    // Kiểm tra câu hỏi hợp lệ: trắc nghiệm (>= 2 options) HOẶC Đúng/Sai (>= 1 rows) HOẶC điền ô trống (có inputElement)
     const isQuestionValid =
       qData &&
       ((qData.questionType === 'fill_blank' && qData.inputElement !== null) ||
+        (qData.questionType === 'true_false' && qData.trueFalseRows && qData.trueFalseRows.length > 0) ||
         (qData.options && qData.options.length >= 2));
 
     if (!isQuestionValid) {
@@ -890,8 +1065,93 @@ async function runSingleQuestionPaginationMode(apiKey) {
       // Điền câu trả lời vào ô text input và kích hoạt React synthetic event
       fillAnswerToInput(qData.inputElement, answerWord);
 
+    } else if (qData.questionType === 'true_false') {
+      // === DẠNG 2: ĐÚNG / SAI (ĐA MỆNH ĐỀ HOẶC ĐƠN MỆNH ĐỀ) ===
+      const count = qData.trueFalseRows.length;
+      updateHUD(`Câu ${qNum}/${totalQuestions} [Đúng/Sai: ${count} ý]`, `Đang gửi tới Gemini AI...`, progressPercent);
+      notifyPopup('UPDATE_STATUS', `Câu ${qNum}/${totalQuestions} [Đúng/Sai: ${count} ý]: Đang hỏi Gemini API...`);
+
+      let tfDecisions = {};
+      try {
+        tfDecisions = await callGeminiTrueFalse(apiKey, qData.questionText, qData.trueFalseRows);
+      } catch (err) {
+        const errText = err.message || 'Lỗi gọi API.';
+
+        if (errText.includes('quota') || errText.includes('Quota') || errText.includes('429') || errText.includes('rate-limit') || errText.includes('retry in')) {
+          const retryMatch = errText.match(/retry in ([\d\.]+)\s*s/i);
+          let waitSec = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) + 2 : 25;
+
+          console.log(`[EduX AI Solver] Đang chờ Google nhả hạn mức Quota: ${waitSec} giây...`);
+          for (let s = waitSec; s > 0; s--) {
+            if (!isRunning) break;
+            updateHUD(
+              `⏳ Quota đầy: chờ ${s}s`,
+              `Google Free giới hạn lượt gọi. Tự động tiếp tục sau ${s}s...`,
+              progressPercent
+            );
+            notifyPopup('UPDATE_STATUS', `⏳ Quota đầy. Tự động đợi ${s}s để giải tiếp câu ${qNum}...`);
+            await sleep(1000);
+          }
+
+          if (!isRunning) break;
+          continue;
+        }
+
+        updateHUD(`Lỗi câu ${qNum}`, `Lỗi: ${errText}. Đang chuyển tiếp...`);
+        notifyPopup('UPDATE_STATUS', `❌ Lỗi câu ${qNum}: ${errText}. Đang chuyển tiếp...`, true);
+
+        if (errText.includes('API key not valid') || errText.includes('API_KEY_INVALID') || errText.includes('HTTP 403')) {
+          alert('EduX AI Solver: ' + errText);
+          isRunning = false;
+          notifyPopup('SOLVE_FINISHED', '❌ ' + errText, true);
+          break;
+        }
+
+        await sleep(1000);
+        await advanceToNextQuestion(currentStep + 1);
+        currentStep++;
+        continue;
+      }
+
+      if (!isRunning) break;
+
+      // Giả lập thời gian suy nghĩ: delay 1.5s - 2.5s
+      const delayMs = getRandomDelay(1500, 2500);
+      const delaySec = (delayMs / 1000).toFixed(1);
+
+      updateHUD(
+        `Câu ${qNum}/${totalQuestions}: Đã phân tích ${count} ý`,
+        `Chờ ${delaySec}s để giả lập người dùng...`,
+        progressPercent
+      );
+      await sleep(delayMs);
+
+      if (!isRunning) break;
+
+      // Lần lượt click từng mệnh đề và highlight
+      for (let i = 0; i < qData.trueFalseRows.length; i++) {
+        if (!isRunning) break;
+        const row = qData.trueFalseRows[i];
+        const decision = tfDecisions[row.index] || tfDecisions[i + 1] || 'Đúng';
+        const targetBtn = decision === 'Đúng' ? row.dungBtn : row.saiBtn;
+
+        updateHUD(
+          `Câu ${qNum}/${totalQuestions}: Mệnh đề ${i + 1} ➔ [${decision}]`,
+          `Đang chọn [${decision}] cho ý ${i + 1}...`,
+          progressPercent
+        );
+        notifyPopup('UPDATE_STATUS', `Câu ${qNum}: Ý ${i + 1} ➔ [${decision}]`);
+
+        clickTrueFalseButton(targetBtn);
+
+        // Giả lập thời gian đọc giữa các ý (400ms - 800ms)
+        if (i < qData.trueFalseRows.length - 1) {
+          await sleep(getRandomDelay(400, 800));
+        }
+      }
+
     } else {
-      // === DẠNG 2: TRẮC NGHIỆM CHỌN A, B, C, D ===
+      // === DẠNG 3: TRẮC NGHIỆM CHỌN A, B, C, D ===
       updateHUD(`Câu ${qNum}/${totalQuestions}`, `Đang gửi tới Gemini AI...`, progressPercent);
       notifyPopup('UPDATE_STATUS', `Câu ${qNum}/${totalQuestions}: Đang hỏi Gemini API...`);
 

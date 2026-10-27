@@ -139,6 +139,54 @@
       flex: 1;
     }
 
+    /* True / False Question Styles (Chuẩn giao diện EduX) */
+    .tf-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .tf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .tf-text {
+      font-size: 14px;
+      color: #334155;
+      flex: 1;
+      padding-right: 16px;
+    }
+
+    .tf-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tf-btn {
+      padding: 6px 18px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: #334155;
+      transition: all 0.2s ease;
+    }
+
+    .tf-btn:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+
     .submit-container {
       text-align: center;
       margin-top: 30px;
@@ -285,6 +333,48 @@
           <span class="option-label">D.</span>
           <span class="option-content">System.out.println()</span>
         </label>
+      </div>
+    </div>
+
+    <!-- Câu hỏi 5: Đúng / Sai đa mệnh đề (Mẫu thực tế EduX CMCU) -->
+    <div class="question-item" id="q5">
+      <div class="question-title">
+        <span class="question-badge">Câu 5</span>
+        <span class="question-badge" style="background: #e0f2fe; color: #0369a1;">Đúng sai</span>
+        : Đánh giá các phát biểu về kiểm thử bảo mật phần mềm:
+        <div style="font-size: 13px; font-weight: normal; color: #64748b; margin-top: 4px;">
+          Chọn Đúng hoặc Sai cho từng mệnh đề:
+        </div>
+      </div>
+      <div class="tf-container">
+        <div class="tf-row">
+          <div class="tf-text">1. Kiểm thử bảo mật nhằm chứng minh hệ thống tự bảo vệ trước các rủi ro phổ biến.</div>
+          <div class="tf-buttons">
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.nextElementSibling.style.background='#fff'; this.nextElementSibling.style.color='#334155';">Đúng</button>
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.previousElementSibling.style.background='#fff'; this.previousElementSibling.style.color='#334155';">Sai</button>
+          </div>
+        </div>
+        <div class="tf-row">
+          <div class="tf-text">2. Chỉ cần kiểm thử bảo mật đối với dữ liệu đầu vào hợp lệ.</div>
+          <div class="tf-buttons">
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.nextElementSibling.style.background='#fff'; this.nextElementSibling.style.color='#334155';">Đúng</button>
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.previousElementSibling.style.background='#fff'; this.previousElementSibling.style.color='#334155';">Sai</button>
+          </div>
+        </div>
+        <div class="tf-row">
+          <div class="tf-text">3. Kiểm thử nên kiểm tra khả năng chống lại tấn công đánh cắp dữ liệu người dùng.</div>
+          <div class="tf-buttons">
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.nextElementSibling.style.background='#fff'; this.nextElementSibling.style.color='#334155';">Đúng</button>
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.previousElementSibling.style.background='#fff'; this.previousElementSibling.style.color='#334155';">Sai</button>
+          </div>
+        </div>
+        <div class="tf-row">
+          <div class="tf-text">4. Không cần kiểm thử khi hệ thống có xác thực người dùng.</div>
+          <div class="tf-buttons">
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.nextElementSibling.style.background='#fff'; this.nextElementSibling.style.color='#334155';">Đúng</button>
+            <button type="button" class="tf-btn" onclick="this.style.background='#0284c7'; this.style.color='#fff'; this.previousElementSibling.style.background='#fff'; this.previousElementSibling.style.color='#334155';">Sai</button>
+          </div>
+        </div>
       </div>
     </div>
 
