@@ -306,65 +306,191 @@ async function advanceToNextQuestion(targetNum) {
 
 /**
  * Tìm tất cả các hàng mệnh đề ĐÚNG / SAI (True/False sub-items)
- * Phù hợp với định dạng EduX: Mỗi mệnh đề có 2 nút [Đúng] và [Sai] bên cạnh
+ * Tương thích cao với định dạng EduX CMCU: Mỗi mệnh đề có 2 nút [Đúng] và [Sai] bên cạnh
  */
 function findTrueFalseRows(container) {
   if (!container) return [];
 
-  // Tìm các container con có chứa cả 2 từ "Đúng" và "Sai"
-  const allCandidates = Array.from(
-    container.querySelectorAll('div, li, [class*="item"], [class*="row"], tr')
-  ).filter((el) => {
-    if (el === container || el.contains(container)) return false;
-    if (el.closest('#edux-solver-hud')) return false;
-
-    const txt = (el.innerText || '').trim();
-    if (!/\bĐúng\b/.test(txt) || !/\bSai\b/.test(txt)) return false;
-    if (txt.length > 800) return false;
-
-    // Tìm xem bên trong có đúng 2 nút/element có nhãn "Đúng" và "Sai" không
-    const clickables = Array.from(el.querySelectorAll('button, [role="button"], div, label, span, a'));
-    const dungEl = clickables.find((c) => c.innerText?.trim() === 'Đúng' && c.children.length <= 1);
-    const saiEl = clickables.find((c) => c.innerText?.trim() === 'Sai' && c.children.length <= 1);
-
-    return !!(dungEl && saiEl);
-  });
-
-  // Lọc chỉ lấy các node lá sâu nhất (innermost nodes - không chứa candidate khác)
-  const innermost = allCandidates.filter((cand) => {
-    return !allCandidates.some((other) => other !== cand && cand.contains(other));
-  });
-
-  // Sắp xếp các hàng từ trên xuống dưới theo vị trí trên màn hình
-  innermost.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-
   const results = [];
-  innermost.forEach((row, idx) => {
-    const clickables = Array.from(row.querySelectorAll('button, [role="button"], div, label, span, a'));
-    const dungBtn =
-      clickables.find((c) => c.innerText?.trim() === 'Đúng' && c.children.length <= 1) ||
-      clickables.find((c) => c.innerText?.trim() === 'Đúng');
-    const saiBtn =
-      clickables.find((c) => c.innerText?.trim() === 'Sai' && c.children.length <= 1) ||
-      clickables.find((c) => c.innerText?.trim() === 'Sai');
 
-    if (dungBtn && saiBtn) {
-      let statementText = (row.innerText || '').trim();
-      // Làm sạch các từ thừa Đúng và Sai ở cuối hàng để lấy nguyên văn mệnh đề
-      statementText = statementText
-        .replace(/\bĐúng\b/g, '')
-        .replace(/\bSai\b/g, '')
-        .trim();
+  const normalize = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
 
-      results.push({
-        index: idx + 1,
-        rowElement: row,
-        statementText: statementText || `Mệnh đề ${idx + 1}`,
-        dungBtn,
-        saiBtn
-      });
+  const isDungWord = (s) => {
+    const t = normalize(s);
+    return t === 'đúng' || t === 'true' || t === 'đ';
+  };
+
+  const isSaiWord = (s) => {
+    const t = normalize(s);
+    return t === 'sai' || t === 'false' || t === 's';
+  };
+
+  const getTop = (el) => {
+    try {
+      const rect = el.getBoundingClientRect();
+      return rect.top + (window.scrollY || 0);
+    } catch (e) {
+      return 0;
     }
+  };
+
+  // 1. Quét tất cả các phần tử có thể tương tác (button, label, [role="button"], div, span)
+  const allClickables = Array.from(
+    container.querySelectorAll('button, [role="button"], label, div, span, a')
+  ).filter((el) => {
+    if (el.closest('#edux-solver-hud')) return false;
+    const t = normalize(el.innerText || el.textContent);
+    // Bỏ qua badge tiêu đề như "Đúng sai" hoặc đoạn hướng dẫn
+    if (t.includes('đúng sai') || t.includes('đúng / sai') || t.includes('chọn đúng hoặc sai')) return false;
+    return true;
   });
+
+  // Tìm các phần tử là nhãn nút Đúng hoặc nút Sai
+  const dungEls = allClickables.filter(
+    (el) => isDungWord(el.innerText || el.textContent) && el.children.length <= 1
+  );
+  const saiEls = allClickables.filter(
+    (el) => isSaiWord(el.innerText || el.textContent) && el.children.length <= 1
+  );
+
+  // Lọc chỉ lấy leaf nodes sâu nhất
+  const leafDung = dungEls.filter((d) => !dungEls.some((other) => other !== d && d.contains(other)));
+  const leafSai = saiEls.filter((s) => !saiEls.some((other) => other !== s && s.contains(other)));
+
+  leafDung.sort((a, b) => getTop(a) - getTop(b));
+  leafSai.sort((a, b) => getTop(a) - getTop(b));
+
+  if (leafDung.length > 0 && leafSai.length > 0) {
+    const usedSai = new Set();
+
+    leafDung.forEach((dBtn, idx) => {
+      const dTop = getTop(dBtn);
+
+      // Tìm nút Sai có tọa độ Y gần nhất (cùng hàng ngang)
+      let bestSai = null;
+      let minDiff = Infinity;
+
+      leafSai.forEach((sBtn) => {
+        if (usedSai.has(sBtn)) return;
+        const diff = Math.abs(dTop - getTop(sBtn));
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestSai = sBtn;
+        }
+      });
+
+      // Nếu không khớp theo tọa độ, ghép theo thứ tự xuất hiện
+      if (!bestSai && idx < leafSai.length && !usedSai.has(leafSai[idx])) {
+        bestSai = leafSai[idx];
+      }
+
+      if (bestSai) {
+        usedSai.add(bestSai);
+
+        const realDungBtn = dBtn.closest('button, [role="button"], label') || dBtn;
+        const realSaiBtn = bestSai.closest('button, [role="button"], label') || bestSai;
+
+        // Tìm thẻ container chung gần nhất của cặp nút này
+        let rowEl = dBtn.parentElement;
+        while (rowEl && rowEl !== container && rowEl !== document.body) {
+          if (rowEl.contains(bestSai)) break;
+          rowEl = rowEl.parentElement;
+        }
+
+        // Bóc tách nội dung mệnh đề
+        let statementText = '';
+        if (rowEl) {
+          const rawRowText = (rowEl.innerText || rowEl.textContent || '').trim();
+          const cleanRowText = rawRowText
+            .replace(/\bĐúng\b|\bSai\b|Đúng|Sai/gi, '')
+            .replace(/Chọn Đúng hoặc Sai cho từng mệnh đề:?/gi, '')
+            .trim();
+
+          if (cleanRowText.length > 3) {
+            statementText = cleanRowText;
+          } else if (rowEl.parentElement) {
+            const pText = (rowEl.parentElement.innerText || '').trim();
+            const cleanPText = pText
+              .replace(/\bĐúng\b|\bSai\b|Đúng|Sai/gi, '')
+              .replace(/Chọn Đúng hoặc Sai cho từng mệnh đề:?/gi, '')
+              .trim();
+            statementText = cleanPText;
+          }
+
+          if (!statementText && rowEl.previousElementSibling) {
+            statementText = (rowEl.previousElementSibling.innerText || '').trim();
+          }
+        }
+
+        // Nếu nội dung chứa nhiều dòng, lọc lấy dòng của mệnh đề hiện tại
+        if (statementText.includes('\n')) {
+          const lines = statementText.split('\n').map((l) => l.trim()).filter(Boolean);
+          const matchedLine = lines.find((l) =>
+            new RegExp(`^(${idx + 1}[\\.\\:\\)]|[a-d][\\.\\:\\)])`, 'i').test(l)
+          );
+          if (matchedLine) {
+            statementText = matchedLine;
+          } else if (lines.length > 0) {
+            statementText = lines[lines.length - 1];
+          }
+        }
+
+        results.push({
+          index: idx + 1,
+          rowElement: rowEl || realDungBtn.parentElement,
+          statementText: statementText || `Mệnh đề ${idx + 1}`,
+          dungBtn: realDungBtn,
+          saiBtn: realSaiBtn
+        });
+      }
+    });
+  }
+
+  // Fallback 2: Quét qua các khối hàng có chứa cả chữ Đúng và Sai
+  if (results.length === 0) {
+    const candidateContainers = Array.from(
+      container.querySelectorAll('div, li, [class*="item"], [class*="row"], tr')
+    ).filter((el) => {
+      if (el === container || el.contains(container)) return false;
+      if (el.closest('#edux-solver-hud')) return false;
+
+      const txt = (el.innerText || '').trim();
+      if (!txt.includes('Đúng') || !txt.includes('Sai')) return false;
+      if (txt.length > 500) return false;
+
+      const cClick = Array.from(el.querySelectorAll('button, [role="button"], div, label, span, a'));
+      const d = cClick.find((c) => isDungWord(c.innerText || c.textContent) && c.children.length <= 1);
+      const s = cClick.find((c) => isSaiWord(c.innerText || c.textContent) && c.children.length <= 1);
+      return !!(d && s);
+    });
+
+    const innermost = candidateContainers.filter(
+      (cand) => !candidateContainers.some((other) => other !== cand && cand.contains(other))
+    );
+    innermost.sort((a, b) => getTop(a) - getTop(b));
+
+    innermost.forEach((row, idx) => {
+      const cClick = Array.from(row.querySelectorAll('button, [role="button"], div, label, span, a'));
+      const d = cClick.find((c) => isDungWord(c.innerText || c.textContent) && c.children.length <= 1);
+      const s = cClick.find((c) => isSaiWord(c.innerText || c.textContent) && c.children.length <= 1);
+      if (d && s) {
+        const realD = d.closest('button, [role="button"], label') || d;
+        const realS = s.closest('button, [role="button"], label') || s;
+        let st = (row.innerText || '')
+          .replace(/Đúng|Sai/gi, '')
+          .replace(/Chọn Đúng hoặc Sai cho từng mệnh đề:?/gi, '')
+          .trim();
+
+        results.push({
+          index: idx + 1,
+          rowElement: row,
+          statementText: st || `Mệnh đề ${idx + 1}`,
+          dungBtn: realD,
+          saiBtn: realS
+        });
+      }
+    });
+  }
 
   return results;
 }
@@ -376,19 +502,26 @@ function extractCurrentSingleQuestion() {
   const root = getQuizRoot();
   const allElements = Array.from(root.querySelectorAll('*'));
 
-  // 1. Tìm tiêu đề câu hỏi: tìm phần tử chứa "Câu [0-9]+"
+  // 1. Tìm tiêu đề câu hỏi: tìm phần tử chứa "Câu [0-9]+" hoặc "Bài [0-9]+"
   let questionText = '';
   let questionNumber = 1;
 
-  // Lọc các node chứa "Câu X"
-  const qTitleNodes = allElements.filter((el) => {
+  // Lọc các node chứa "Câu X" hoặc "Bài X"
+  let qTitleNodes = allElements.filter((el) => {
     const text = el.innerText?.trim() || '';
-    return /^Câu\s*\d+/i.test(text) && el.children.length <= 4;
+    return /^(?:Câu|Bài)\s*\d+/i.test(text) && el.children.length <= 4;
   });
+
+  if (qTitleNodes.length === 0) {
+    qTitleNodes = allElements.filter((el) => {
+      const text = el.innerText?.trim() || '';
+      return /(?:Câu|Bài)\s*\d+/i.test(text) && text.length < 500 && el.children.length <= 6;
+    });
+  }
 
   if (qTitleNodes.length > 0) {
     const titleNode = qTitleNodes[0];
-    const numMatch = (titleNode.innerText || '').match(/Câu\s*(\d+)/i);
+    const numMatch = (titleNode.innerText || '').match(/(?:Câu|Bài)\s*(\d+)/i);
     if (numMatch) {
       questionNumber = parseInt(numMatch[1], 10);
     }
@@ -416,6 +549,7 @@ function extractCurrentSingleQuestion() {
       .replace(/Đúng\s*\/\s*Sai\s*[:\-]?\s*/gi, '')
       .replace(/Điền chỗ trống\s*[:\-]?\s*/gi, '')
       .replace(/Điền từ hoặc cụm từ phù hợp vào chỗ trống\s*[:\-]?\s*/gi, '')
+      .replace(/Chọn Đúng hoặc Sai cho từng mệnh đề:?/gi, '')
       .trim();
   } else {
     // Fallback: Tìm tiêu đề thông qua thẻ h1-h4 hoặc class questionText
@@ -842,14 +976,27 @@ YÊU CẦU:
   const trimmed = (responseText || '').trim();
   const results = {};
 
-  // Phân tích từng dòng trả về
+  // Phân tích từng dòng trả về (hỗ trợ cả 1:, 1., a:, a., Mệnh đề 1:, Ý 1:)
   const lines = trimmed.split('\n');
   lines.forEach((line) => {
-    const match = line.match(/(?:mệnh đề\s*)?(\d+)\s*[:\.\-]?\s*(Đúng|Sai|True|False)/i);
+    const match = line.match(/(?:mệnh đề\s*|ý\s*)?([1-9]|a|b|c|d)[\:\.\)\-\s]\s*(?:đáp án\s*)?[:\s]*(Đúng|Sai|True|False)/i);
     if (match) {
-      const idx = parseInt(match[1], 10);
+      const idx = isNaN(match[1]) ? match[1].toLowerCase().charCodeAt(0) - 96 : parseInt(match[1], 10);
       const val = match[2].toLowerCase();
       results[idx] = val === 'đúng' || val === 'true' ? 'Đúng' : 'Sai';
+    }
+  });
+
+  // Fallback nếu còn sót mệnh đề chưa parse được
+  statements.forEach((s, idx) => {
+    const i = idx + 1;
+    if (!results[i]) {
+      const regexSai = new RegExp(`(?:${i}|${String.fromCharCode(96 + i)})[^\\n]*(?:Sai|False)`, 'i');
+      if (regexSai.test(trimmed)) {
+        results[i] = 'Sai';
+      } else {
+        results[i] = 'Đúng';
+      }
     }
   });
 
@@ -968,6 +1115,11 @@ async function runSingleQuestionPaginationMode(apiKey) {
     // 1. Bóc tách câu hỏi đang hiển thị trên màn hình
     const qData = extractCurrentSingleQuestion();
 
+    // Đồng bộ ngay số câu thực tế từ giao diện nếu phát hiện được
+    if (qData && qData.questionNumber) {
+      currentStep = qData.questionNumber;
+    }
+
     // Kiểm tra câu hỏi hợp lệ: trắc nghiệm (>= 2 options) HOẶC Đúng/Sai (>= 1 rows) HOẶC điền ô trống (có inputElement)
     const isQuestionValid =
       qData &&
@@ -977,17 +1129,22 @@ async function runSingleQuestionPaginationMode(apiKey) {
 
     if (!isQuestionValid) {
       domRetryCount++;
+      const currentDispNum = (qData && qData.questionNumber) ? qData.questionNumber : currentStep;
       if (domRetryCount >= MAX_DOM_RETRIES) {
         // Bỏ qua câu này sau khi thử nhiều lần - tự động chuyển tiếp
-        console.warn(`[EduX AI Solver] Câu ${currentStep}: Không tìm thấy DOM sau ${MAX_DOM_RETRIES} lần, tự động bỏ qua.`);
-        updateHUD(`Bỏ qua câu ${currentStep}`, 'Không tìm thấy câu hỏi trên trang, đang chuyển tiếp...', (currentStep / totalQuestions) * 100);
-        notifyPopup('UPDATE_STATUS', `⚠️ Câu ${currentStep}: Không tìm thấy DOM, tự bỏ qua.`);
+        console.warn(`[EduX AI Solver] Câu ${currentDispNum}: Không tìm thấy DOM sau ${MAX_DOM_RETRIES} lần, tự động bỏ qua.`);
+        updateHUD(`Bỏ qua câu ${currentDispNum}`, 'Không tìm thấy câu hỏi hoặc đáp án, đang chuyển tiếp...', (currentStep / totalQuestions) * 100);
+        notifyPopup('UPDATE_STATUS', `⚠️ Câu ${currentDispNum}: Không tìm thấy DOM, tự bỏ qua.`);
         // Thử bấm chuyển tiếp
         await advanceToNextQuestion(currentStep + 1);
-        currentStep++;
+        if (qData && qData.questionNumber) {
+      currentStep = qData.questionNumber + 1;
+    } else {
+      currentStep++;
+    }
         domRetryCount = 0;
       } else {
-        updateHUD(`Đang chờ tải câu ${currentStep}...`, `Thử lần ${domRetryCount}/${MAX_DOM_RETRIES}...`, (currentStep / totalQuestions) * 100);
+        updateHUD(`Đang chờ tải câu ${currentDispNum}...`, `Thử lần ${domRetryCount}/${MAX_DOM_RETRIES}...`, (currentStep / totalQuestions) * 100);
         await sleep(1000);
       }
       continue;
@@ -1041,7 +1198,11 @@ async function runSingleQuestionPaginationMode(apiKey) {
 
         await sleep(1000);
         await advanceToNextQuestion(currentStep + 1);
-        currentStep++;
+        if (qData && qData.questionNumber) {
+      currentStep = qData.questionNumber + 1;
+    } else {
+      currentStep++;
+    }
         continue;
       }
 
@@ -1109,7 +1270,11 @@ async function runSingleQuestionPaginationMode(apiKey) {
 
         await sleep(1000);
         await advanceToNextQuestion(currentStep + 1);
-        currentStep++;
+        if (qData && qData.questionNumber) {
+      currentStep = qData.questionNumber + 1;
+    } else {
+      currentStep++;
+    }
         continue;
       }
 
@@ -1196,7 +1361,11 @@ async function runSingleQuestionPaginationMode(apiKey) {
         // Tự động chuyển câu để không bị đứng im
         await sleep(1000);
         await advanceToNextQuestion(currentStep + 1);
-        currentStep++;
+        if (qData && qData.questionNumber) {
+      currentStep = qData.questionNumber + 1;
+    } else {
+      currentStep++;
+    }
         continue;
       }
 
@@ -1255,7 +1424,11 @@ async function runSingleQuestionPaginationMode(apiKey) {
       }
     }
 
-    currentStep++;
+    if (qData && qData.questionNumber) {
+      currentStep = qData.questionNumber + 1;
+    } else {
+      currentStep++;
+    }
   }
 
   // Kết thúc
