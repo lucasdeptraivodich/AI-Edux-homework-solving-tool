@@ -4,7 +4,15 @@ Tiện ích mở rộng Google Chrome (Manifest V3) hỗ trợ tự động đ�
 
 ---
 
-## 📁 Cấu Trúc Dự Án
+## ✨ Tính Năng Nổi Bật
+
+- **Trắc nghiệm 4 lựa chọn (A, B, C, D)**: Tự động trích xuất nội dung các câu hỏi trắc nghiệm truyền thống và chọn đáp án chính xác.
+- **Trắc nghiệm Đúng / Sai (True/False - Chương trình GDPT mới)**: Hỗ trợ tự động phân tích và chọn Đúng hoặc Sai cho từng ý (a, b, c, d) trong mỗi câu hỏi.
+- **Tự luận / Điền từ (Fill in the blank)**: Tối ưu prompt phân tích ngữ cảnh, đơn vị đo, quy chuẩn định dạng số thập phân/chữ viết để đạt độ chính xác cao nhất và tự động điền vào ô input.
+- **Mô phỏng thao tác người dùng**: Có độ trễ ngẫu nhiên (1.5s - 3.5s) kèm hiệu ứng viền xanh trực quan, cuộn mượt (smooth scroll) đến từng câu hỏi.
+- **Giao diện HUD nổi**: Theo dõi tiến trình làm bài theo thời gian thực trực tiếp trên trang.
+
+---
 
 ```
 toolEdux/
