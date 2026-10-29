@@ -15,8 +15,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+// ============================================================
+// DANH SÁCH MODEL VÀ CƠ CHẾ POOL QUOTA TỰ ĐỘNG
+// ============================================================
+
 // Bộ nhớ đệm lưu lại endpoint & model hoạt động thành công
 let cachedTarget = null;
+
+// Map ghi nhận các model đã cạn Quota (429) để tự động nhảy sang model khác ngay lập tức
+const quotaExhaustedMap = new Map();
+
+// Cache danh sách model đã quét từ Google AI Studio
+let cachedDiscoveredModels = null;
+let lastDiscoveryTime = 0;
 
 // Danh sách model bị deprecated / không phù hợp giải trắc nghiệm - sẽ bị bỏ qua khi dò tìm tự động
 const DEPRECATED_MODELS = [
@@ -29,15 +40,32 @@ const DEPRECATED_MODELS = [
   'computer-use'
 ];
 
-// Danh sách các model và version ưu tiên (Ưu tiên các model chính thống của Google AI Studio)
-const CANDIDATE_MODELS = [
+// Danh sách dự phòng toàn diện tất cả các model của Google AI Studio (Flash Lite, Flash, Pro)
+const FALLBACK_CANDIDATE_MODELS = [
+  // Nhóm 1: Các model Flash Lite / Flash 8B (Quota cực lớn: 500 - 1500 RPD)
+  { version: 'v1beta', model: 'gemini-1.5-flash-8b' },
+  { version: 'v1beta', model: 'gemini-1.5-flash-8b-latest' },
+  { version: 'v1beta', model: 'gemini-2.0-flash-lite' },
+  { version: 'v1beta', model: 'gemini-2.0-flash-lite-preview' },
+  { version: 'v1beta', model: 'gemini-2.0-flash-lite-preview-02-05' },
+  { version: 'v1beta', model: 'gemini-flash-lite-latest' },
+
+  // Nhóm 2: Các model Flash chuẩn
   { version: 'v1beta', model: 'gemini-1.5-flash' },
   { version: 'v1beta', model: 'gemini-1.5-flash-latest' },
   { version: 'v1beta', model: 'gemini-2.0-flash' },
   { version: 'v1beta', model: 'gemini-2.0-flash-exp' },
+  { version: 'v1beta', model: 'gemini-flash-latest' },
+  { version: 'v1beta', model: 'gemini-2.5-flash' },
+  { version: 'v1beta', model: 'gemini-3.5-flash' },
+  { version: 'v1beta', model: 'gemini-3.1-flash' },
+  { version: 'v1beta', model: 'gemini-3.8-flash' },
+
+  // Nhóm 3: Các model Pro thông minh cao cấp
   { version: 'v1beta', model: 'gemini-1.5-pro' },
   { version: 'v1beta', model: 'gemini-1.5-pro-latest' },
-  { version: 'v1beta', model: 'gemini-flash-latest' }
+  { version: 'v1beta', model: 'gemini-2.0-pro-exp-02-05' },
+  { version: 'v1beta', model: 'gemini-pro-latest' }
 ];
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -70,7 +98,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 /**
- * Thử gọi API với một target (version + model) cụ thể (Có timeout 8 giây chống treo)
+ * Thử gọi API với một target (version + model) cụ thể (Có timeout 7 giây chống treo)
  */
 async function tryCallGemini(apiKey, version, model, prompt) {
   const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
@@ -118,6 +146,15 @@ async function tryCallGemini(apiKey, version, model, prompt) {
       response.status === 400 &&
       (errorMsg.includes('API key not valid') || errorMsg.includes('API_KEY_INVALID'));
 
+    err.isQuotaError =
+      response.status === 429 ||
+      errorMsg.includes('quota') ||
+      errorMsg.includes('Quota') ||
+      errorMsg.includes('RESOURCE_EXHAUSTED') ||
+      errorMsg.includes('Rate limit') ||
+      errorMsg.includes('rate limit') ||
+      errorMsg.includes('limit reached');
+
     throw err;
   }
 
@@ -146,9 +183,13 @@ async function tryCallGemini(apiKey, version, model, prompt) {
 }
 
 /**
- * Tự động tìm kiếm model khả dụng từ danh sách ListModels của Google AI Studio
+ * Tự động tìm kiếm TOÀN BỘ model khả dụng từ danh sách ListModels của Google AI Studio
  */
-async function discoverAvailableModel(apiKey) {
+async function discoverAllAvailableModels(apiKey) {
+  if (cachedDiscoveredModels && (Date.now() - lastDiscoveryTime < 5 * 60 * 1000)) {
+    return cachedDiscoveredModels;
+  }
+
   for (const ver of ['v1beta', 'v1']) {
     try {
       let signal;
@@ -165,68 +206,117 @@ async function discoverAvailableModel(apiKey) {
 
         // Lọc các model hỗ trợ generateContent và không bị deprecated
         const validModels = models.filter((m) => {
-          const name = (m.name || '').replace(/^models\//, '');
+          const name = (m.name || '').replace(/^models\//, '').toLowerCase();
           const isDeprecated = DEPRECATED_MODELS.some((d) => name.includes(d));
           return m.supportedGenerationMethods?.includes('generateContent') && !isDeprecated;
         });
 
-        // Tìm model flash ưu tiên theo thứ tự: 3.6-flash > 3.5-flash > 3.7-flash > flash khác
-        const preferred =
-          validModels.find((m) => (m.name || '').includes('3.6-flash')) ||
-          validModels.find((m) => (m.name || '').includes('3.5-flash')) ||
-          validModels.find((m) => (m.name || '').includes('3.7-flash')) ||
-          validModels.find((m) => (m.name || '').includes('3.8-flash')) ||
-          validModels.find((m) => (m.name || '').includes('flash-lite')) ||
-          validModels.find((m) => (m.name || '').includes('flash'));
+        // Sắp xếp ưu tiên:
+        // 1. Flash Lite / 8b / 3.5 / 3.1 (quota lớn 500 RPD)
+        // 2. Flash khác (1.5-flash, 2.0-flash...)
+        // 3. Pro (1.5-pro, 2.0-pro...)
+        // 4. Các model còn lại
+        const sorted = validModels.sort((a, b) => {
+          const nameA = a.name.toLowerCase();
+          const nameB = b.name.toLowerCase();
 
-        if (preferred) {
-          const cleanName = preferred.name.replace(/^models\//, '');
-          console.log(`EduX AI Solver: Dò được model tối ưu: ${cleanName} (${ver})`);
-          return { version: ver, model: cleanName };
-        }
+          const scoreA =
+            (nameA.includes('lite') || nameA.includes('8b') || nameA.includes('3.5') || nameA.includes('3.1')) ? 10 :
+            nameA.includes('flash') ? 8 :
+            nameA.includes('pro') ? 5 : 1;
 
-        // Fallback: lấy model đầu tiên hợp lệ (không deprecated)
-        const fallbackModel = validModels[0];
-        if (fallbackModel) {
-          const cleanName = fallbackModel.name.replace(/^models\//, '');
-          return { version: ver, model: cleanName };
+          const scoreB =
+            (nameB.includes('lite') || nameB.includes('8b') || nameB.includes('3.5') || nameB.includes('3.1')) ? 10 :
+            nameB.includes('flash') ? 8 :
+            nameB.includes('pro') ? 5 : 1;
+
+          return scoreB - scoreA;
+        });
+
+        const resultList = sorted.map((m) => ({
+          version: ver,
+          model: m.name.replace(/^models\//, '')
+        }));
+
+        if (resultList.length > 0) {
+          cachedDiscoveredModels = resultList;
+          lastDiscoveryTime = Date.now();
+          console.log(`[EduX AI Solver] Đã quét được ${resultList.length} model khả dụng từ tài khoản:`, resultList.map(m => m.model));
+          return resultList;
         }
       }
     } catch (e) {
-      // Bỏ qua lỗi để thử tiếp
+      console.warn(`Lỗi khi quét danh sách model (${ver}):`, e.message);
     }
   }
-  return null;
+
+  return FALLBACK_CANDIDATE_MODELS;
 }
 
 /**
- * Xử lý gọi Gemini với cơ chế tự động chuyển đổi model (Auto-Fallback)
+ * Xử lý gọi Gemini với BỂ QUOTA ĐA MODEL TỰ ĐỘNG (Multi-Model Quota Pool)
+ * Khi bất kỳ model nào hết Quota (429), lập tức chuyển sang model tiếp theo trong tài khoản
  */
 async function handleGeminiCallWithFallback(apiKey, prompt) {
-  // 1. Thử dùng target đã lưu thành công trước đó (Nếu thất bại, tự động bỏ qua để thử lại danh sách mới)
+  // 1. Thử dùng target đã lưu thành công trước đó (nếu chưa bị cạn quota)
   if (cachedTarget) {
-    try {
-      const res = await tryCallGemini(apiKey, cachedTarget.version, cachedTarget.model, prompt);
-      if (res && res.trim().length > 0) return res.trim();
-      cachedTarget = null;
-    } catch (e) {
-      console.warn(`Target cũ (${cachedTarget.model}) bị lỗi: ${e.message}. Tự động reset và thử model khác...`);
+    const isExhausted = quotaExhaustedMap.has(cachedTarget.model) && quotaExhaustedMap.get(cachedTarget.model) > Date.now();
+    if (!isExhausted) {
+      try {
+        const res = await tryCallGemini(apiKey, cachedTarget.version, cachedTarget.model, prompt);
+        if (res && res.trim().length > 0) return res.trim();
+      } catch (e) {
+        console.warn(`Model đang dùng (${cachedTarget.model}) gặp lỗi: ${e.message}. Tự động đổi model khác...`);
+        if (e.isQuotaError) {
+          quotaExhaustedMap.set(cachedTarget.model, Date.now() + 20 * 60 * 1000); // Đánh dấu cạn quota 20 phút
+        }
+        cachedTarget = null;
+      }
+    } else {
       cachedTarget = null;
     }
   }
 
-  // 2. Thử lần lượt các candidate ưu tiên
-  let lastError = null;
+  // 2. Lấy toàn bộ danh sách model từ tài khoản Google AI Studio
+  const discoveredModels = await discoverAllAvailableModels(apiKey);
 
-  for (const candidate of CANDIDATE_MODELS) {
+  // Gộp danh sách quét được và fallback list (khử trùng lặp)
+  const pool = [];
+  const seen = new Set();
+  for (const item of [...discoveredModels, ...FALLBACK_CANDIDATE_MODELS]) {
+    const key = `${item.version}/${item.model}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      pool.push(item);
+    }
+  }
+
+  // Sắp xếp: Ưu tiên các model CHƯA bị cạn quota lên đầu
+  const prioritizedPool = pool.sort((a, b) => {
+    const aEx = quotaExhaustedMap.has(a.model) && quotaExhaustedMap.get(a.model) > Date.now();
+    const bEx = quotaExhaustedMap.has(b.model) && quotaExhaustedMap.get(b.model) > Date.now();
+    if (aEx && !bEx) return 1;
+    if (!aEx && bEx) return -1;
+    return 0;
+  });
+
+  let lastError = null;
+  let triedCount = 0;
+
+  for (const candidate of prioritizedPool) {
+    // Nếu model đã cạn quota trong phiên này, bỏ qua để nhảy ngay sang model khác
+    if (quotaExhaustedMap.has(candidate.model) && quotaExhaustedMap.get(candidate.model) > Date.now()) {
+      continue;
+    }
+
+    triedCount++;
     try {
-      console.log(`EduX AI Solver: Thử kết nối model ${candidate.model} (${candidate.version})...`);
+      console.log(`[EduX AI Solver] Đang kích hoạt model dự phòng: ${candidate.model} (${candidate.version})...`);
       const result = await tryCallGemini(apiKey, candidate.version, candidate.model, prompt);
 
-      // Nếu trả về text hợp lệ -> Ghi nhớ và trả về ngay
       if (result && result.trim().length > 0) {
         cachedTarget = candidate;
-        console.log(`✅ Đã kết nối thành công với: ${candidate.model} (${candidate.version})`);
+        console.log(`✅ Kết nối thành công với model: ${candidate.model} (${candidate.version})`);
         return result.trim();
       }
     } catch (err) {
@@ -237,25 +327,18 @@ async function handleGeminiCallWithFallback(apiKey, prompt) {
         throw err;
       }
 
-      // Với bất kỳ lỗi nào khác (High Demand, Quota, 404, 503, Empty) -> TỰ ĐỘNG CHUYỂN SANG MODEL TIẾP THEO
-      console.warn(`Model ${candidate.model} (${candidate.version}) không khả dụng: ${err.message}. Đang thử model kế tiếp...`);
+      // Nếu hết quota (429) -> Ghi nhận và nhảy ngay sang model tiếp theo trong gói
+      if (err.isQuotaError) {
+        quotaExhaustedMap.set(candidate.model, Date.now() + 20 * 60 * 1000);
+        console.warn(`⚠️ Model ${candidate.model} đã hết hạn mức Quota (429). Tự động kích hoạt model tiếp theo trong tài khoản...`);
+        continue;
+      }
+
+      // Các lỗi khác (503 High demand, 404...) -> Thử model kế tiếp
+      console.warn(`Model ${candidate.model} không phản hồi (${err.message}). Đang chuyển model...`);
       continue;
     }
   }
 
-  // 3. Nếu các candidate trên đều bận, tự động quét API ListModels
-  const discovered = await discoverAvailableModel(apiKey);
-  if (discovered) {
-    try {
-      const result = await tryCallGemini(apiKey, discovered.version, discovered.model, prompt);
-      if (result && result.trim().length > 0) {
-        cachedTarget = discovered;
-        return result.trim();
-      }
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  throw lastError || new Error('Tất cả các model Gemini đều đang quá tải hoặc không phản hồi. Vui lòng thử lại.');
+  throw lastError || new Error(`Đã thử qua ${triedCount} model khả dụng nhưng tất cả gói đều đang cạn Quota. Vui lòng thử lại sau.`);
 }
