@@ -64,129 +64,25 @@ function getQuizRoot() {
 // 4. GIAO DIỆN NỔI TRÊN TRANG (HUD)
 // =============================================================================
 
+// =============================================================================
+// 4. QUẢN LÝ GIAO DIỆN (ĐÃ XÓA BANNER HUD NỔI TRÊN TRANG THEO YÊU CẦU NGƯỜI DÙNG)
+// =============================================================================
+
 function createHUD() {
-  if (hudElement) return;
-
-  hudElement = document.createElement('div');
-  hudElement.id = 'edux-solver-hud';
-  hudElement.innerHTML = `
-    <div class="hud-container">
-      <div class="hud-header">
-        <div class="hud-title">⚡ EduX AI Solver</div>
-        <button id="hud-close-btn" class="hud-btn-close" title="Dừng và đóng">✕</button>
-      </div>
-      <div id="hud-status" class="hud-status">Đang khởi tạo...</div>
-      <div class="hud-progress-bar">
-        <div id="hud-progress-fill" class="hud-progress-fill" style="width: 0%"></div>
-      </div>
-      <div id="hud-detail" class="hud-detail">Sẵn sàng phân tích câu hỏi</div>
-    </div>
-  `;
-
-  const style = document.createElement('style');
-  style.id = 'edux-solver-hud-style';
-  style.textContent = `
-    #edux-solver-hud {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 2147483647;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-      border-radius: 12px;
-      overflow: hidden;
-      width: 300px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      color: #f8fafc;
-      font-size: 13px;
-      transition: all 0.3s ease;
-      user-select: none;
-    }
-    #edux-solver-hud .hud-container {
-      padding: 14px;
-    }
-    #edux-solver-hud .hud-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    #edux-solver-hud .hud-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: #60a5fa;
-    }
-    #edux-solver-hud .hud-btn-close {
-      background: transparent;
-      border: none;
-      color: #94a3b8;
-      cursor: pointer;
-      font-size: 14px;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-    #edux-solver-hud .hud-btn-close:hover {
-      background: #1e293b;
-      color: #ef4444;
-    }
-    #edux-solver-hud .hud-status {
-      font-weight: 600;
-      font-size: 12px;
-      color: #e2e8f0;
-      margin-bottom: 6px;
-    }
-    #edux-solver-hud .hud-progress-bar {
-      height: 6px;
-      background: #1e293b;
-      border-radius: 999px;
-      overflow: hidden;
-      margin-bottom: 8px;
-    }
-    #edux-solver-hud .hud-progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #3b82f6, #10b981);
-      transition: width 0.3s ease;
-    }
-    #edux-solver-hud .hud-detail {
-      font-size: 11px;
-      color: #94a3b8;
-      line-height: 1.4;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  `;
-
-  document.head.appendChild(style);
-  document.body.appendChild(hudElement);
-
-  document.getElementById('hud-close-btn').addEventListener('click', () => {
-    stopAutoSolve('Người dùng đã bấm dừng từ bảng điều khiển.');
-  });
+  // Đã gỡ bỏ banner nổi để giao diện làm bài hoàn toàn sạch sẽ, không che khuất đề
+  removeHUD();
 }
 
 function updateHUD(status, detail, progressPercent = null) {
-  if (!hudElement) createHUD();
-
-  const statusEl = document.getElementById('hud-status');
-  const detailEl = document.getElementById('hud-detail');
-  const progressEl = document.getElementById('hud-progress-fill');
-
-  if (statusEl) statusEl.textContent = status;
-  if (detailEl) detailEl.textContent = detail;
-  if (progressEl && progressPercent !== null) {
-    progressEl.style.width = `${Math.min(100, Math.max(0, progressPercent))}%`;
-  }
+  // Không hiển thị banner nổi trên trang, thông tin tiến trình được gửi trực tiếp về Popup
 }
 
 function removeHUD() {
-  if (hudElement) {
-    hudElement.remove();
-    hudElement = null;
-  }
+  const el = document.getElementById('edux-solver-hud');
+  if (el) el.remove();
   const style = document.getElementById('edux-solver-hud-style');
   if (style) style.remove();
+  hudElement = null;
 }
 
 // =============================================================================
@@ -705,17 +601,33 @@ async function callGeminiAPI(apiKey, questionText, options) {
     .map((opt) => `${opt.label}. ${opt.text}`)
     .join('\n');
 
-  const prompt = `Bạn là một chuyên gia giải bài tập trắc nghiệm học thuật xuất sắc. Hãy đọc kỹ câu hỏi và các phương án sau:
+  const prompt = `Bạn là một giáo sư, chuyên gia học thuật đại học xuất sắc bậc tiến sĩ, có kiến thức sâu rộng và chính xác tuyệt đối trong TẤT CẢ các lĩnh vực:
+- Kinh tế & Quản trị kinh doanh: Kế toán tài chính, Kế toán quản trị (hàng tồn kho, bình quân gia quyền, FIFO, kê khai thường xuyên, kiểm kê định kỳ, giá vốn hàng bán COGS, định khoản nợ/có), Tài chính doanh nghiệp (NPV, IRR, WACC, đòn bẩy, chi phí vốn), Quản trị học, Quản trị chiến lược (SWOT, Porter 5 forces, BCG), Marketing (STP, 4P, 7P), Quản trị nhân sự, Quản trị chuỗi cung ứng (EOQ, JIT).
+- Kinh tế học: Kinh tế vi mô, vĩ mô (Cung cầu, độ co giãn, chi phí biên MC, doanh thu biên MR, tối đa hóa lợi nhuận, lạm phát, GDP, chính sách tài khóa/tiền tệ).
+- Khoa học xã hội, Pháp luật đại cương, Triết học Mác - Lênin, Tư tưởng Hồ Chí Minh, Lịch sử Đảng.
+- Khoa học tự nhiên & Kỹ thuật: Công nghệ thông tin, Kỹ thuật phần mềm, Kiểm thử phần mềm, Toán học, Xác suất thống kê.
 
-[CÂU HỎI]:
+Hãy đọc thật kỹ câu hỏi và các phương án lựa chọn dưới đây:
+
+[ĐỀ BÀI CÂU HỎI]:
 ${questionText}
 
-[CÁC LỰA CHỌN]:
+[DANH SÁCH LỰA CHỌN]:
 ${formattedOptions}
 
-YÊU CẦU:
-1. Đọc và suy luận thật kỹ đề bài, đối chiếu các phương án để chọn DUY NHẤT một đáp án đúng nhất và chính xác nhất.
-2. Bắt buộc trả lời ngay ở dòng đầu tiên theo đúng mẫu sau (không viết thêm chữ nào khác ở dòng đầu):
+QUY TRÌNH TƯ DUY HỌC THUẬT BẮT BUỘC ĐỂ ĐẠT ĐỘ CHÍNH XÁC 100%:
+1. Xác định chính xác chuyên ngành và chủ đề trọng tâm của câu hỏi.
+2. Suy luận và tính toán chi tiết từng bước:
+   - NẾU LÀ BÀI TOÁN TÍNH TOÁN (Kế toán, Tài chính, Kinh tế, Toán, Thống kê):
+     + Liệt kê rõ các dữ kiện đề bài cho (số lượng, đơn vị, đơn giá, số dư đầu kỳ, hàng nhập, hàng xuất, số dư cuối kỳ...).
+     + Nêu rõ công thức học thuật chuẩn áp dụng (Ví dụ: Đơn giá bình quân gia quyền = Tổng giá trị / Tổng số lượng; Giá vốn hàng bán = Số lượng xuất * Đơn giá bình quân; hoặc Giá vốn hàng bán = Tồn đầu kỳ + Nhập trong kỳ - Tồn cuối kỳ...).
+     + Thay số và thực hiện phép tính cẩn thận từng bước, không bỏ qua các bước trung gian, đối chiếu lại kết quả số học.
+   - NẾU LÀ CÂU HỎI LÝ THUYẾT / TÌNH HUỐNG (Quản trị, Marketing, Pháp luật, Triết học...):
+     + Đối chiếu từng phương án với nguyên lý/khái niệm giáo trình đại học chuẩn.
+     + Phân tích vì sao các phương án khác sai (bẫy khái niệm, nhầm thuật ngữ) và vì sao phương án được chọn là đúng nhất.
+3. Tổng hợp kết luận rõ ràng ở cuối cùng theo đúng cú pháp sau:
+
+[KẾT QUẢ]
 Đáp án: [A, B, C hoặc D]`;
 
   let candidateText = '';
@@ -754,9 +666,21 @@ YÊU CẦU:
 
   const trimmed = (candidateText || '').trim();
 
-  // 1. Bóc tách linh hoạt: "Đáp án: A", "A.", "**A**", hoặc chữ cái đơn lẻ
+  // 1. Ưu tiên bóc tách từ block [KẾT QUẢ] ở cuối
+  let parseZone = trimmed;
+  const resultHeaderMatch = trimmed.match(/\[?\s*KẾT QUẢ\s*\]?|\[?\s*KET QUA\s*\]?/i);
+  if (resultHeaderMatch) {
+    parseZone = trimmed.slice(resultHeaderMatch.index);
+  }
+
+  // Bóc tách chữ cái đáp án A, B, C, D...
   const match =
+    parseZone.match(/Đáp án\s*[:\-]?\s*([A-F])/i) ||
+    parseZone.match(/(?:chọn|phương án|câu)\s*[:\-]?\s*([A-F])/i) ||
+    parseZone.match(/\*\*([A-F])\*\*/i) ||
+    parseZone.match(/^([A-F])[\.\:\)]/im) ||
     trimmed.match(/Đáp án\s*[:\-]?\s*([A-F])/i) ||
+    trimmed.match(/(?:chọn|phương án|câu)\s*[:\-]?\s*([A-F])/i) ||
     trimmed.match(/\*\*([A-F])\*\*/i) ||
     trimmed.match(/^([A-F])[\.\:\)]/im) ||
     trimmed.match(/\b([A-F])\b/i);
@@ -765,9 +689,9 @@ YÊU CẦU:
     return match[1].toUpperCase();
   }
 
-  // 2. Fallback theo nội dung text nếu Gemini trả về tên đáp án thay vì chữ cái (ví dụ: "Hà Nội")
+  // 2. Fallback theo nội dung text nếu Gemini nhắc tên đáp án
   for (const opt of options) {
-    if (opt.text && opt.text.length >= 3 && trimmed.toLowerCase().includes(opt.text.toLowerCase())) {
+    if (opt.text && opt.text.length >= 3 && parseZone.toLowerCase().includes(opt.text.toLowerCase())) {
       console.log(`[EduX AI Solver] Khớp đáp án theo text: [${opt.label}] "${opt.text}"`);
       return opt.label.toUpperCase();
     }

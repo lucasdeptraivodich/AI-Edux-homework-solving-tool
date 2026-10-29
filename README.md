@@ -12,7 +12,7 @@ Tiện ích mở rộng Google Chrome (Manifest V3) hỗ trợ tự động gi�
 - **Tối ưu độ chính xác cao với Chain-of-Thought (CoT)**: AI phân tích lý thuyết, đối chiếu chuyên ngành và khử các bẫy ngữ nghĩa cực đoan trước khi đưa ra kết luận.
 - **Đồng bộ hóa câu hỏi thời gian thực**: Tự động nhận diện câu hỏi hiện tại trên màn hình (dù bắt đầu từ câu 1 hay câu 23), không lo lệch tiến trình.
 - **Mô phỏng thao tác người dùng (Anti-Detection)**: Tạo độ trễ ngẫu nhiên (1.5s - 3.5s) kèm hiệu ứng viền xanh trực quan, cuộn mượt (smooth scroll).
-- **Giao diện nổi (HUD) thời gian thực**: Theo dõi chi tiết từng thao tác của AI ngay trên màn hình làm bài.
+- **Giao diện sạch sẽ, không che khuất trang**: Đã loại bỏ hoàn toàn các banner nổi trên màn hình theo phản hồi người dùng; tiến trình được quản lý trực tiếp qua Popup tiện ích mà không làm vướng mắt.
 
 ---
 
@@ -22,7 +22,7 @@ Tiện ích mở rộng Google Chrome (Manifest V3) hỗ trợ tự động gi�
 
 ```mermaid
 flowchart TD
-    A["👤 Người Dùng Bấm 'Bắt đầu tự động làm' (Popup)"] --> B["⚡ Khởi tạo HUD & Tiêm Content Script"]
+    A["👤 Người Dùng Bấm 'Bắt đầu tự động làm' (Popup)"] --> B["⚡ Kích hoạt Content Script vào trang làm bài"]
     B --> C["🔍 Quét DOM & Đồng Bộ Số Câu Hỏi Thực Tế (currentStep)"]
     C --> D{"🎯 Phân Loại Dạng Câu Hỏi"}
 
@@ -34,7 +34,7 @@ flowchart TD
     E2 --> F
     E3 --> F
 
-    F --> G["🤖 Gemini API Phân Tích (Chain-of-Thought, Temperature = 0.0)"]
+    F --> G["🤖 Gemini API Phân Tích (Chain-of-Thought Đa Ngành, Temperature = 0.0)"]
     G --> H["📥 Trả Về Kết Quả & Parse Chuẩn Hóa"]
 
     H --> I["⏳ Giả Lập Thời Gian Đọc & Suy Nghĩ (1.5s - 3.5s)"]
@@ -43,16 +43,14 @@ flowchart TD
     J --> K{"Hết Đề Thi Chưa?"}
     K -->|"Chưa"| L["➡️ Tự Động Click 'Câu tiếp >' & Đợi DOM Ổn Định"]
     L --> C
-    K -->|"Đã hết"| M["🎉 Hoàn Thành Toàn Bộ Đề Thi & Báo HUD"]
+    K -->|"Đã hết"| M["🎉 Hoàn Thành Toàn Bộ Đề Thi & Báo Thành Công Qua Popup"]
 ```
 
 ### 🧩 Chi Tiết 6 Giai Đoạn Hoạt Động
 
-#### Giai đoạn 1: Kích hoạt & Khởi tạo giao diện HUD
+#### Giai đoạn 1: Kích hoạt & Kiểm tra an toàn
 1. Khi người dùng mở đề thi EduX và bấm **"Bắt đầu tự động làm"** trên Popup, thông điệp `START_AUTO_SOLVE` kèm API Key được gửi đến `content.js`.
-2. Tiện ích khởi tạo một bảng điều khiển nổi **HUD (Heads-Up Display)** ở góc trên bên phải màn hình:
-   - Hiển thị thanh tiến trình (% hoàn thành).
-   - Hiển thị trạng thái chi tiết theo thời gian thực (đang phân tích, đang chờ giả lập, đã chọn đáp án nào,...).
+2. Tiện ích tự động xóa sạch các banner cũ nếu có, giữ cho trang web hoàn toàn sạch sẽ, không che khuất đề thi và nút bấm.
 
 #### Giai đoạn 2: Bóc tách DOM & Đồng bộ câu hỏi thời gian thực
 1. Tiện ích quét DOM hiện tại để tìm tiêu đề câu hỏi (`Câu X`, `Bài X`).
@@ -67,13 +65,15 @@ flowchart TD
 - **Dạng 3 - Tự luận / Điền ô trống**: Tìm các thẻ `<input type="text">` hoặc `<textarea>` nhập câu trả lời.
 
 #### Giai đoạn 4: Phân tích AI qua Background Service Worker
-1. Giao tiếp qua `background.js` (Service Worker) để:
-   - Vượt qua chính sách bảo mật nội dung (Content Security Policy - CSP) của trang web EduX.
-   - Cơ chế **Auto-Fallback**: Tự động dò tìm và chuyển đổi linh hoạt giữa các model Gemini khả dụng (`gemini-1.5-flash`, `gemini-flash-latest`,...) khi gặp lỗi quá tải 503 hoặc giới hạn lượt gọi 429.
-2. Áp dụng kỹ thuật **Chain-of-Thought (CoT)**: AI suy luận ngắn về mặt lý thuyết cho từng ý trước khi chốt kết quả, giúp tăng độ chính xác vượt trội.
+1. Giao tiếp qua `background.js` (Service Worker) để vượt qua chính sách CSP của EduX và tự động fallback giữa các model Gemini (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`...).
+2. **Cơ chế Chain-of-Thought (CoT) Đa Ngành Toàn Diện**:
+   - Thay vì ép trả lời ngay, AI được kích hoạt quy trình tư duy từng bước:
+     - **Bài toán tính toán (Kế toán, Tài chính, Kinh tế, Thống kê)**: Tách bạch dữ kiện đề bài, lập công thức chuẩn (bình quân gia quyền, giá vốn hàng bán, số dư kho, chi phí biên, doanh thu biên...), thực hiện tính toán số học từng bước trước khi so sánh với 4 đáp án.
+     - **Bài tập lý thuyết (Quản trị kinh doanh, Marketing, Pháp luật, Triết học...)**: Đối chiếu chặt chẽ với giáo trình đại học chuẩn, phân tích lý do sai của từng phương án bẫy để chọn phương án tối ưu.
+   - Định dạng kết quả cuối cùng theo cấu trúc `[KẾT QUẢ]` để bộ parse trích xuất chính xác 100%.
 
 #### Giai đoạn 5: Mô phỏng hành vi người dùng (Human Simulation)
-1. Tạo độ trễ ngẫu nhiên từ **1.5s đến 3.5s** (tương đương tốc độ đọc và suy nghĩ của học sinh/sinh viên thật), tránh bị hệ thống giám sát nghi ngờ gian lận.
+1. Tạo độ trễ ngẫu nhiên từ **1.5s đến 3.5s** (tương đương tốc độ đọc và suy nghĩ của con người), tránh bị hệ thống giám sát nghi ngờ gian lận.
 2. Kích hoạt toàn diện chuỗi sự kiện Synthetic Events:
    - `pointerdown` ➔ `mousedown` ➔ `pointerup` ➔ `mouseup` ➔ `click` ➔ `change` ➔ `input`.
    - Đảm bảo tương thích hoàn hảo với các framework hiện đại như React 18, Vue, Angular.
@@ -86,16 +86,16 @@ flowchart TD
 
 ---
 
-## 🎯 Giải Pháp Tăng Độ Chính Xác Cho Dạng Đúng / Sai
+## 🎯 Giải Pháp Nâng Cao Độ Chính Xác Cho Trắc Nghiệm Đa Ngành
 
-Dạng bài Đúng / Sai trong các kỳ thi đại học (như Kiểm thử phần mềm, AI, CNTT, Kinh tế...) thường chứa nhiều câu hỏi gài bẫy lý thuyết. Tiện ích áp dụng 3 kỹ thuật cốt lõi:
+Trong thực tế thi cử đại học, các môn không thuộc CNTT như **Quản trị kinh doanh, Kế toán, Tài chính doanh nghiệp, Kinh tế học, Khoa học xã hội** thường khiến AI dễ trả lời sai (xác suất 50/50) nếu không có cơ chế suy luận trung gian:
 
-1. **Kỹ thuật Chain-of-Thought (Tư duy từng bước)**:
-   - Thay vì ép AI trả lời ngay lập tức `1: Đúng`, prompt yêu cầu AI phân tích ngắn gọn lý do học thuật cho từng mệnh đề trước. Việc sinh ra token suy luận giúp LLM kích hoạt các liên kết tri thức chính xác hơn 30-50%.
-2. **Khử bẫy ngữ nghĩa cực đoan**:
-   - Hệ thống huấn luyện AI cảnh giác cao độ với các từ khóa mang tính khẳng định tuyệt đối: *"chỉ cần"*, *"luôn luôn"*, *"tất cả"*, *"không cần"*, *"không bao giờ"*. Trong các đề thi học thuật chuẩn, các mệnh đề chứa từ này phần lớn là **SAI** (ngoại trừ các tiên đề/định lý đặc thù).
-3. **Phân tích theo chuẩn chuyên ngành**:
-   - Tự động nhận diện môn học (ví dụ: chuẩn ISTQB / IEEE trong Kiểm thử phần mềm) để đánh giá các trường hợp biên (`null`, `buffer overflow`, `exception`, `boundary value`).
+1. **Khắc phục lỗi tính nhẩm của LLM (CoT Scratchpad)**:
+   - Khi gặp các bài toán tính giá vốn hàng bán, đơn giá bình quân gia quyền hay điểm hòa vốn, prompt bắt buộc mô hình phải viết phép tính ra giấy nháp số học trước (ví dụ: `Đơn giá bình quân = 84.000.000 / 1.500 = 56.000 đ/sp` ➔ `Giá vốn = 1.000 * 56.000 = 56 triệu đồng`). Điều này triệt tiêu hoàn toàn lỗi "nhìn số đoán mò" (chọn nhầm phương án 54 triệu do xuất hiện tích 900 * 60 = 54 triệu).
+2. **Hệ thống hóa kiến thức Quản trị & Kinh tế chuẩn**:
+   - Tích hợp sẵn hệ thống quy tắc học thuật cho Quản trị kinh doanh (SWOT, Porter 5 forces, 4P/7P, Maslow, McGregor), Kế toán (kê khai thường xuyên vs kiểm kê định kỳ, FIFO, bình quân gia quyền, định khoản nợ/có), và Kinh tế học ($MR = MC$, độ co giãn, giá trần/sàn).
+3. **Khử bẫy khẳng định tuyệt đối**:
+   - Phân biệt rõ các khẳng định mang tính cực đoan ("chỉ cần", "luôn luôn", "tất cả", "không cần", "không bao giờ") trong câu hỏi lý thuyết để loại bỏ phương án sai.
 
 ---
 

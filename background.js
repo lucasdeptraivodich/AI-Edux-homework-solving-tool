@@ -29,15 +29,15 @@ const DEPRECATED_MODELS = [
   'computer-use'
 ];
 
-// Danh sách các model và version ưu tiên (Ưu tiên gemini-3.5-flash và 3.6-flash để độ chính xác tối đa)
+// Danh sách các model và version ưu tiên (Ưu tiên các model chính thống của Google AI Studio)
 const CANDIDATE_MODELS = [
-  { version: 'v1beta', model: 'gemini-3.5-flash' },
-  { version: 'v1beta', model: 'gemini-3.6-flash' },
-  { version: 'v1beta', model: 'gemini-3.7-flash' },
-  { version: 'v1beta', model: 'gemini-flash-latest' },
-  { version: 'v1beta', model: 'gemini-flash-lite-latest' },
-  { version: 'v1beta', model: 'gemini-3.8-flash' },
-  { version: 'v1beta', model: 'gemini-2.5-flash' }
+  { version: 'v1beta', model: 'gemini-1.5-flash' },
+  { version: 'v1beta', model: 'gemini-1.5-flash-latest' },
+  { version: 'v1beta', model: 'gemini-2.0-flash' },
+  { version: 'v1beta', model: 'gemini-2.0-flash-exp' },
+  { version: 'v1beta', model: 'gemini-1.5-pro' },
+  { version: 'v1beta', model: 'gemini-1.5-pro-latest' },
+  { version: 'v1beta', model: 'gemini-flash-latest' }
 ];
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
