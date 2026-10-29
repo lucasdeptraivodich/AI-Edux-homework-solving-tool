@@ -925,24 +925,31 @@ function clickTrueFalseButton(btn) {
 
 /**
  * Gọi Gemini giải câu hỏi dạng ĐÚNG / SAI (Đa mệnh đề hoặc đơn mệnh đề)
+ * Áp dụng Chain-of-Thought (Suy luận học thuật từng bước) để tăng tối đa độ chính xác
  */
 async function callGeminiTrueFalse(apiKey, questionText, statements) {
   const formattedStatements = statements
     .map((s, idx) => `${idx + 1}. ${s.statementText}`)
     .join('\n');
 
-  const prompt = `Bạn là một chuyên gia học thuật xuất sắc. Hãy đọc kỹ câu hỏi và đánh giá tính ĐÚNG hoặc SAI của từng mệnh đề dưới đây:
+  const prompt = `Bạn là một chuyên gia giáo sư học thuật đại học xuất sắc.
+Hãy phân tích cẩn thận và đánh giá chính xác tính ĐÚNG hoặc SAI của từng mệnh đề trong đề thi dưới đây:
 
-[ĐỀ BÀI]:
+[ĐỀ BÀI CÂU HỎI]:
 ${questionText}
 
-[DANH SÁCH MỆNH ĐỀ]:
+[DANH SÁCH CÁC MỆNH ĐỀ]:
 ${formattedStatements}
 
-YÊU CẦU:
-1. Phân tích thật kỹ từng mệnh đề dựa trên kiến thức học thuật chính xác và toàn diện.
-2. Với mỗi mệnh đề, xác định rõ là "Đúng" hoặc "Sai".
-3. Bắt buộc trả lời theo đúng định dạng sau, mỗi mệnh đề 1 dòng duy nhất (tuyệt đối không thêm giải thích rườm rà):
+CHIẾN LƯỢC TƯ DUY NÂNG CAO ĐỘ CHÍNH XÁC (TỐI QUAN TRỌNG):
+1. Nhận diện chuyên ngành học thuật (Công nghệ phần mềm, Kiểm thử phần mềm/Testing, Trí tuệ nhân tạo, Khoa học máy tính, Kinh tế, Toán học,...).
+2. Phân tích ngữ nghĩa chuyên sâu và đối chiếu với các nguyên lý/chuẩn mực học thuật chính thống:
+   - Cảnh giác cao độ với các từ mang tính bẫy tuyệt đối hóa như: "chỉ cần", "luôn luôn", "tất cả", "không cần", "không bao giờ" -> Trong trắc nghiệm đại học, các mệnh đề này thường là SAI trừ khi định luật/định lý phát biểu như vậy.
+   - Các mệnh đề đề cập đến thực hành tốt (best practice), an toàn, xử lý ngoại lệ, kiểm thử biên (boundary test, null, buffer overflow, exception) thường là ĐÚNG.
+3. Suy luận vắn tắt cho từng mệnh đề (1-2 câu giải thích lý do kỹ thuật vì sao Đúng hoặc Sai).
+4. Cuối cùng, tổng hợp kết quả rõ ràng ở phần [KẾT QUẢ] theo đúng cú pháp sau để hệ thống tự động nhận diện:
+
+[KẾT QUẢ]
 1: Đúng (hoặc Sai)
 2: Đúng (hoặc Sai)
 3: Đúng (hoặc Sai)
@@ -976,8 +983,15 @@ YÊU CẦU:
   const trimmed = (responseText || '').trim();
   const results = {};
 
+  // Nếu có phần [KẾT QUẢ], ưu tiên bóc tách từ phần [KẾT QUẢ]
+  let parseZone = trimmed;
+  const resultHeaderMatch = trimmed.match(/\[?\s*KẾT QUẢ\s*\]?|\[?\s*KET QUA\s*\]?/i);
+  if (resultHeaderMatch) {
+    parseZone = trimmed.slice(resultHeaderMatch.index);
+  }
+
   // Phân tích từng dòng trả về (hỗ trợ cả 1:, 1., a:, a., Mệnh đề 1:, Ý 1:)
-  const lines = trimmed.split('\n');
+  const lines = parseZone.split('\n');
   lines.forEach((line) => {
     const match = line.match(/(?:mệnh đề\s*|ý\s*)?([1-9]|a|b|c|d)[\:\.\)\-\s]\s*(?:đáp án\s*)?[:\s]*(Đúng|Sai|True|False)/i);
     if (match) {
@@ -987,7 +1001,21 @@ YÊU CẦU:
     }
   });
 
-  // Fallback nếu còn sót mệnh đề chưa parse được
+  // Fallback 1: Nếu parseZone chưa đủ, quét toàn bộ responseText
+  if (Object.keys(results).length < statements.length) {
+    trimmed.split('\n').forEach((line) => {
+      const match = line.match(/(?:mệnh đề\s*|ý\s*)?([1-9]|a|b|c|d)[\:\.\)\-\s]\s*(?:đáp án\s*)?[:\s]*(Đúng|Sai|True|False)/i);
+      if (match) {
+        const idx = isNaN(match[1]) ? match[1].toLowerCase().charCodeAt(0) - 96 : parseInt(match[1], 10);
+        const val = match[2].toLowerCase();
+        if (!results[idx]) {
+          results[idx] = val === 'đúng' || val === 'true' ? 'Đúng' : 'Sai';
+        }
+      }
+    });
+  }
+
+  // Fallback 2: Nếu còn sót mệnh đề chưa parse được
   statements.forEach((s, idx) => {
     const i = idx + 1;
     if (!results[i]) {
