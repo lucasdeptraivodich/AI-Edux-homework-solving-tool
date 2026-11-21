@@ -2,6 +2,7 @@
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
   --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --emerald-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --success: #16a34a;
   --success-bg: #dcfce7;
   --warning: #d97706;
@@ -37,7 +38,13 @@ body {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* Header */
@@ -206,30 +213,155 @@ body {
   text-decoration: underline;
 }
 
-/* Info Grid */
-.info-grid {
+/* Mode Switcher Tabs */
+.mode-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 4px;
 }
 
-.info-item {
+.mode-tab {
   display: flex;
-  flex-direction: column;
-}
-
-.info-label {
-  font-size: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.info-value {
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-tab:hover:not(:disabled) {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mode-tab.active[data-mode="quiz"] {
+  background: var(--primary-gradient);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.mode-tab.active[data-mode="lecture"] {
+  background: var(--emerald-gradient);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.mode-tab:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Feature Panel */
+.feature-panel {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feature-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feature-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+
+.badge-blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-emerald {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.feature-delay {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.feature-desc {
+  font-size: 11.5px;
   color: #cbd5e1;
+  line-height: 1.45;
+}
+
+/* Speed Switcher */
+.speed-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 9px;
+  padding: 6px 10px;
+}
+
+.speed-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.speed-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.speed-pill {
+  border: 1px solid var(--card-border);
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.speed-pill:hover:not(:disabled) {
+  color: #f1f5f9;
+  border-color: #475569;
+}
+
+.speed-pill.active[data-speed="fast"] {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.speed-pill.active[data-speed="normal"] {
+  background: rgba(59, 130, 246, 0.18);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.speed-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Buttons */
@@ -265,11 +397,25 @@ body {
   transform: translateY(0);
 }
 
-.btn-primary:disabled {
+.btn-primary:disabled,
+.btn-lecture:disabled {
   background: #334155;
   color: #64748b;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.btn-lecture {
+  width: 100%;
+  background: var(--emerald-gradient);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.btn-lecture:hover:not(:disabled) {
+  opacity: 0.95;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.45);
 }
 
 .btn-secondary {

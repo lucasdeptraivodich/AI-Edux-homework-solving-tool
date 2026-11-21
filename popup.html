@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduX Quiz Solver</title>
+  <title>EduX AI Solver</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
         <div class="logo-icon">⚡</div>
         <div>
           <h1 class="title">EduX AI Solver</h1>
-          <p class="subtitle">Tự động giải trắc nghiệm & điền ô trống với Gemini</p>
+          <p class="subtitle">Tự động giải Bài tập &amp; Bài giảng AI với Gemini</p>
         </div>
       </div>
       <div id="statusBadge" class="status-badge badge-warning">
@@ -25,7 +25,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-      <!-- API Key Section -->
+      <!-- API Key Section (Dùng chung cho cả 2 tính năng) -->
       <section class="card">
         <label for="apiKeyInput" class="section-label">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -59,23 +59,58 @@
         </div>
       </section>
 
-      <!-- Settings Info -->
-      <section class="card info-grid">
-        <div class="info-item">
-          <span class="info-label">AI Model</span>
-          <span class="info-value">Tự động (Flash/Pro)</span>
+      <!-- Mode Switcher: Chia 2 tính năng riêng biệt -->
+      <section class="mode-tabs" role="tablist" aria-label="Chọn chế độ giải">
+        <button type="button" id="tabQuizBtn" class="mode-tab active" data-mode="quiz" role="tab" aria-selected="true">
+          <span>📝</span>
+          <span>Bài tập AI</span>
+        </button>
+        <button type="button" id="tabLectureBtn" class="mode-tab" data-mode="lecture" role="tab" aria-selected="false">
+          <span>🎓</span>
+          <span>Bài giảng AI</span>
+        </button>
+      </section>
+
+      <!-- Feature 1: Bài tập AI (Quiz / Homework) -->
+      <section id="panelQuiz" class="card feature-panel">
+        <div class="feature-header">
+          <span class="feature-badge badge-blue">Đề thi &amp; Bài tập</span>
+          <span class="feature-delay" id="quizSpeedHint">1.5s - 3.5s / câu</span>
         </div>
-        <div class="info-item">
-          <span class="info-label">Độ trễ giả lập</span>
-          <span class="info-value">1.5s - 3.5s / câu</span>
+        <p class="feature-desc">
+          Tự động giải các dạng <b>Trắc nghiệm A/B/C/D</b>, <b>Đúng/Sai đa mệnh đề</b> và <b>Điền ô trống</b>, tự bấm <i>Câu tiếp &gt;</i>.
+        </p>
+      </section>
+
+      <!-- Feature 2: Bài giảng AI (Lecture Slides + Check + Next) -->
+      <section id="panelLecture" class="card feature-panel" style="display: none;">
+        <div class="feature-header">
+          <span class="feature-badge badge-emerald">Bài giảng tương tác</span>
+          <span class="feature-delay" id="lectureSpeedHint">Tối đa tốc độ + Cache</span>
+        </div>
+        <p class="feature-desc">
+          Tự động duyệt từng trang bài giảng (<i>Trang sau &gt;</i>), mở câu hỏi, chọn đáp án, bấm <b>Kiểm tra</b>, đổi câu nếu sai và sang tiếp.
+        </p>
+      </section>
+
+      <!-- Speed Switcher -->
+      <section class="speed-bar" aria-label="Chọn tốc độ">
+        <span class="speed-label">Tốc độ:</span>
+        <div class="speed-pills">
+          <button type="button" id="speedFastBtn" class="speed-pill" data-speed="fast">⚡ Siêu tốc</button>
+          <button type="button" id="speedNormalBtn" class="speed-pill active" data-speed="normal">🛡️ Tự nhiên</button>
         </div>
       </section>
 
       <!-- Actions -->
       <section class="actions">
-        <button id="startBtn" class="btn btn-primary">
+        <button id="startQuizBtn" class="btn btn-primary">
           <span class="btn-icon-symbol">▶</span>
-          <span>Bắt đầu tự động làm</span>
+          <span>Bắt đầu giải Bài tập AI</span>
+        </button>
+        <button id="startLectureBtn" class="btn btn-lecture" style="display: none;">
+          <span class="btn-icon-symbol">▶</span>
+          <span>Bắt đầu giải Bài giảng AI</span>
         </button>
         <button id="stopBtn" class="btn btn-danger" style="display: none;">
           <span class="btn-icon-symbol">⏹</span>
@@ -93,12 +128,12 @@
     <!-- Footer Guide -->
     <footer class="footer">
       <details class="guide-details">
-        <summary>💡 Hướng dẫn & Tùy chỉnh Selector</summary>
+        <summary>💡 Hướng dẫn sử dụng 2 chế độ</summary>
         <div class="guide-content">
-          <p>1. Lấy API Key từ <b>Google AI Studio</b> rồi dán và bấm <b>Lưu API Key</b>.</p>
-          <p>2. Mở tab bài tập trắc nghiệm trên <b>EduX</b>.</p>
-          <p>3. Bấm <b>Bắt đầu tự động làm</b>.</p>
-          <p>4. Nếu trang web dùng class khác, mở file <code>content.js</code> và điều chỉnh biến <code>SELECTORS</code> ở đầu file.</p>
+          <p>1. Dán Gemini API Key rồi bấm <b>Lưu Key</b> (dùng chung cho cả 2 chế độ).</p>
+          <p>2. <b>Bài tập AI:</b> Mở trang làm bài kiểm tra/trắc nghiệm EduX và bấm bắt đầu.</p>
+          <p>3. <b>Bài giảng AI:</b> Mở trang slide bài giảng (<code>/subject?id=...</code>) hoặc màn hình câu hỏi bài giảng rồi bấm bắt đầu.</p>
+          <p>4. Nếu cần chỉnh selector DOM, xem file <code>content.js</code>.</p>
         </div>
       </details>
     </footer>

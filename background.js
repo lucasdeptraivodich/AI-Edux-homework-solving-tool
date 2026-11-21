@@ -89,7 +89,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 2. Gọi API giải câu hỏi
   if (request.action === 'CALL_GEMINI_PROXY') {
-    handleGeminiCallWithFallback(request.apiKey, request.prompt)
+    handleGeminiCallWithFallback(request.apiKey, request.prompt, {
+      fastMode: Boolean(request.fastMode)
+    })
       .then((data) => sendResponse({ success: true, data, model: cachedTarget?.model }))
       .catch((err) => sendResponse({ success: false, error: err.message }));
 
@@ -100,41 +102,58 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 /**
  * Thử gọi API với một target (version + model) cụ thể (Có timeout 7 giây chống treo)
  */
-async function tryCallGemini(apiKey, version, model, prompt) {
+async function tryCallGemini(apiKey, version, model, prompt, options = {}) {
   const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
+  const isFast = Boolean(options.fastMode);
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [{ text: prompt }]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.0, // Nhiệt độ 0 để AI trả về câu trả lời chính xác, kiên định nhất
-      maxOutputTokens: 1024
+  const buildRequestBody = (includeThinkingZero) => {
+    const generationConfig = {
+      temperature: 0.0,
+      maxOutputTokens: isFast ? 64 : 1024
+    };
+    if (includeThinkingZero) {
+      generationConfig.thinkingConfig = { thinkingBudget: 0 };
     }
+    return {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig
+    };
   };
 
-  // Tạo tín hiệu timeout 7 giây để chuyển fallback nhanh chóng nếu model bận
-  let signal;
-  try {
-    signal = AbortSignal.timeout(7000);
-  } catch (e) {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 7000);
-    signal = controller.signal;
+  // Tắt thinking ở chế độ nhanh cho các model Gemini 2.5 hỗ trợ thinkingBudget
+  const canDisableThinking = isFast && /^gemini-2\.5-/i.test(model);
+
+  const sendFetch = async (includeThinkingZero) => {
+    let signal;
+    try {
+      signal = AbortSignal.timeout(7000);
+    } catch (e) {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 7000);
+      signal = controller.signal;
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(buildRequestBody(includeThinkingZero)),
+      signal
+    });
+    const data = await response.json().catch(() => ({}));
+    return { response, data };
+  };
+
+  let { response, data } = await sendFetch(canDisableThinking);
+
+  // Nếu model không hỗ trợ thinkingConfig, tự động thử lại ngay không kèm thinkingConfig
+  if (!response.ok && canDisableThinking && response.status === 400) {
+    const msg = (data.error?.message || '').toLowerCase();
+    if (msg.includes('thinking') || msg.includes('unknown name')) {
+      ({ response, data } = await sendFetch(false));
+    }
   }
-
-  let response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody),
-    signal
-  });
-
-  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     const errorMsg = data.error?.message || `HTTP ${response.status}`;
@@ -257,13 +276,13 @@ async function discoverAllAvailableModels(apiKey) {
  * Xử lý gọi Gemini với BỂ QUOTA ĐA MODEL TỰ ĐỘNG (Multi-Model Quota Pool)
  * Khi bất kỳ model nào hết Quota (429), lập tức chuyển sang model tiếp theo trong tài khoản
  */
-async function handleGeminiCallWithFallback(apiKey, prompt) {
+async function handleGeminiCallWithFallback(apiKey, prompt, options = {}) {
   // 1. Thử dùng target đã lưu thành công trước đó (nếu chưa bị cạn quota)
   if (cachedTarget) {
     const isExhausted = quotaExhaustedMap.has(cachedTarget.model) && quotaExhaustedMap.get(cachedTarget.model) > Date.now();
     if (!isExhausted) {
       try {
-        const res = await tryCallGemini(apiKey, cachedTarget.version, cachedTarget.model, prompt);
+        const res = await tryCallGemini(apiKey, cachedTarget.version, cachedTarget.model, prompt, options);
         if (res && res.trim().length > 0) return res.trim();
       } catch (e) {
         console.warn(`Model đang dùng (${cachedTarget.model}) gặp lỗi: ${e.message}. Tự động đổi model khác...`);
@@ -312,7 +331,7 @@ async function handleGeminiCallWithFallback(apiKey, prompt) {
     triedCount++;
     try {
       console.log(`[EduX AI Solver] Đang kích hoạt model dự phòng: ${candidate.model} (${candidate.version})...`);
-      const result = await tryCallGemini(apiKey, candidate.version, candidate.model, prompt);
+      const result = await tryCallGemini(apiKey, candidate.version, candidate.model, prompt, options);
 
       if (result && result.trim().length > 0) {
         cachedTarget = candidate;
